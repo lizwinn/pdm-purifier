@@ -177,29 +177,31 @@ dependencies and each dependency that has only an sdist for some platform.
 A dependency with a C extension needs a C compiler on PATH, as it does for
 `pdm install`.
 
-## Real-world projects
+## Examples
 
 [PDM](https://github.com/pdm-project/pdm) 2.27.0, at commit `09c95b78`, is
-the first project. The CI job `real-world` (`tests/real-world.sh`) locks it
-and builds its virtual environment and its package in the Nix sandbox, and
-the built `pdm` runs. Three things came out of it:
+an example of a real project that CI locks and builds. The CI job
+`real-world` (`tests/real-world.sh`) locks it and builds its virtual
+environment and its package in the Nix sandbox, and the built `pdm` runs.
+The job does not run PDM's own test suite, which runs against PyPI.
 
-- The committed pdm.lock lists a zensical wheel that PyPI has since
-  removed, so `pdm-purifier lock` stops with a message that says the index
-  no longer lists the file. The job refreshes pdm.lock with `pdm lock`.
-- A package that builds from an sdist with a Rust toolchain, such as
-  cryptography, cannot be locked, because the toolchain downloads outside
-  PDM. The lock run skips a package's sdist build when wheels for the
-  lock run's Python exist for Linux on x86_64 and on aarch64.
+Building PDM shows what a larger project asks of the host:
+
+- A package whose sdist builds with a Rust toolchain, such as
+  cryptography, cannot be locked from its sdist, because the toolchain
+  downloads outside PDM. The lock run skips a package's sdist build when
+  wheels for the lock run's Python exist for Linux on x86_64 and on
+  aarch64.
 - A C extension that builds during the lock run, such as cffi, needs its
-  libraries on the host: the job provides libffi and pkg-config.
+  libraries on the host. The job provides libffi and pkg-config.
+- When pdm.lock names a file that an index has removed, `pdm-purifier lock`
+  stops with a message that says so. The job refreshes pdm.lock with
+  `pdm lock` first.
 
-The job builds the environment and the package. It does not run PDM's own
-test suite, which runs against PyPI.
-
-The fixtures under `tests/fixtures/` cover the other sources: a registry
-wheel with an sdist-only dependency, a mix of URL, git, local and submodule
-sources, and a Mercurial, Subversion and Bazaar dependency.
+The fixtures under `tests/fixtures/` are smaller examples of the other
+sources: a registry wheel with an sdist-only dependency, a mix of URL, git,
+local and submodule sources, and a Mercurial, Subversion and Bazaar
+dependency.
 
 ## Credits
 
