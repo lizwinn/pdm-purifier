@@ -5,7 +5,7 @@
 groups = ["default"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:a42870b2d16bd985972a07d13f62d29c1b1aa2cd3f8c3e51b99d429d97a32366"
+content_hash = "sha256:4270462487378547deb2ea7112309e2c7cea5100c6f84de394f45676f7ae0bd2"
 
 [[metadata.targets]]
 requires_python = ">=3.11"
@@ -48,3 +48,13 @@ groups = ["default"]
 files = [
     {file = "six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274"},
 ]
+
+[[package]]
+name = "xxhash"
+version = "4.0.2"
+requires_python = ">=3.9"
+git = "https://github.com/ifduyue/python-xxhash.git"
+ref = "v4.0.2"
+revision = "5803a455336a0eeb03e34f893d7526387e9555e5"
+summary = "Python binding for xxHash"
+groups = ["default"]

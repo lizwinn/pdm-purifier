@@ -24,7 +24,7 @@
 # - `manifest`: the manifest that `pdm-purifier pdm` serves PDM from.
 {
   lib,
-  stdenvNoCC,
+  stdenv,
   runCommand,
   writeText,
   fetchgit,
@@ -47,6 +47,11 @@
   groups ? [ "default" ],
   # A replacement for the fetcher of locked files; see nix/lib/fetch.nix.
   fetchurl ? null,
+  # What the builds of sdists and local packages need beyond Python and a C
+  # compiler: tools such as pkg-config, and the system libraries a C
+  # extension links against.
+  nativeBuildInputs ? [ ],
+  buildInputs ? [ ],
 }:
 let
   inherit (builtins)
@@ -65,7 +70,7 @@ let
   pyproject = builtins.fromTOML (builtins.readFile (root + "/pyproject.toml"));
   projectName = pyproject.project.name or "project";
 
-  platform = stdenvNoCC.hostPlatform;
+  platform = stdenv.hostPlatform;
   target = "Python ${python.pythonVersion} on ${platform.system}";
   installs = import ./wheels.nix {
     inherit (python) pythonVersion;
@@ -184,20 +189,22 @@ let
     ${gitEnvironment}
   '';
 
-  nativeBuildInputs = [
+  buildTools = [
     pdm-purifier.pdm-with-plugin
     git
     python
-  ];
+  ]
+  ++ nativeBuildInputs;
 
   # The project's outputs, recorded by `pdm-purifier lock`.
   outputs = lock.outputs or [ ];
   isProjectOutput = output: output.path == ".";
   projectIsDistribution = lib.any isProjectOutput outputs;
 
-  environment = stdenvNoCC.mkDerivation {
+  environment = stdenv.mkDerivation {
     name = "${projectName}-environment";
-    inherit src nativeBuildInputs;
+    inherit src buildInputs;
+    nativeBuildInputs = buildTools;
     dontConfigure = true;
     dontFixup = true;
     buildPhase = ''
@@ -220,9 +227,10 @@ let
   package =
     output:
     let
-      dist = stdenvNoCC.mkDerivation {
+      dist = stdenv.mkDerivation {
         name = "${output.name}-${output.version}-dist";
-        inherit src nativeBuildInputs;
+        inherit src buildInputs;
+        nativeBuildInputs = buildTools;
         dontConfigure = true;
         dontFixup = true;
         buildPhase = ''

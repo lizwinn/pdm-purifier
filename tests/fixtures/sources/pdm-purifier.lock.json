@@ -86,6 +86,17 @@
     {
       "git": {
         "leaveDotGit": true,
+        "rev": "e626a72bc2321cd320e953a0ccf1584cad60f363",
+        "submodules": false,
+        "url": "https://github.com/Cyan4973/xxHash.git"
+      },
+      "hash": "sha256-G7iBzyESWdmqgyxgGRzWyniOvCNOStSxjZUHFdWuHUc=",
+      "name": "xxhash-xxhash",
+      "path": "git/xxhash-xxhash-e626a72bc232"
+    },
+    {
+      "git": {
+        "leaveDotGit": true,
         "rev": "944641a7357376a43151bd4a3ca44f9c07c4d1ae",
         "submodules": false,
         "url": "https://github.com/docopt/docopt.git"
@@ -93,9 +104,20 @@
       "hash": "sha256-JReCxSsUV491aDmPZKOzWr2SGyXjSyVVjkw+psYI6qA=",
       "name": "docopt",
       "path": "git/docopt-944641a73573"
+    },
+    {
+      "git": {
+        "leaveDotGit": true,
+        "rev": "5803a455336a0eeb03e34f893d7526387e9555e5",
+        "submodules": false,
+        "url": "https://github.com/ifduyue/python-xxhash.git"
+      },
+      "hash": "sha256-nV7FQsgifQ6l2B7tkDAKok/lThmX6kgWL9n2j01Vn68=",
+      "name": "xxhash",
+      "path": "git/xxhash-5803a455336a"
     }
   ],
-  "inputsHash": "27fb8f2e359c82650c6438c093143147ade341900a41d0486c8d73c895cc659d",
+  "inputsHash": "339e284d6c620ea6aadc75536d11c1f5fac73a7bf83af4d3f4b36d009ab63b0d",
   "outputs": [
     {
       "name": "localpkg",

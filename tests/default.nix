@@ -54,13 +54,14 @@ in
     touch $out
   '';
 
-  # A wheel by URL, an sdist by URL built with the locked flit_core, a git
-  # dependency cloned from its locked checkout and built with the locked
-  # setuptools, and a local package by path.
+  # A wheel by URL, an sdist by URL built with the locked flit_core, two git
+  # dependencies cloned from their locked checkouts and built with the
+  # locked setuptools (xxhash with its submodule, whose C sources its
+  # extension compiles), and a local package by path.
   sources-runs = runCommand "sources-runs" { } ''
     output=$(${lib.getExe sources.programs.sources})
     echo "$output"
-    [ "$output" = "six 1.17.0, idna 3.10, docopt 0.6.2, localpkg 0.2.0" ]
+    [ "$output" = "six 1.17.0, idna 3.10, docopt 0.6.2, xxh64 894c17e562117b4d, localpkg 0.2.0" ]
     [ "$(${lib.getExe sources.programs.localpkg})" = "localpkg 0.2.0" ]
     touch $out
   '';

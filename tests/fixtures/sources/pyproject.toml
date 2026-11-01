@@ -10,6 +10,9 @@ dependencies = [
     "idna @ https://files.pythonhosted.org/packages/f1/70/7703c29685631f5a7590aa73f1f1d3fa9a380e654b86af429e0934a32f7d/idna-3.10.tar.gz",
     # A git repository at a tag, built with setuptools.
     "docopt @ git+https://github.com/docopt/docopt.git@0.6.2",
+    # A git repository with a submodule (deps/xxhash), whose C extension
+    # compiles the submodule's sources.
+    "xxhash @ git+https://github.com/ifduyue/python-xxhash.git@v4.0.2",
     # A local package with a script of its own.
     "localpkg @ file:///${PROJECT_ROOT}/vendor/localpkg",
 ]
