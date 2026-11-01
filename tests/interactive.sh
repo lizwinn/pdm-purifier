@@ -95,4 +95,18 @@ rm -rf .venv "$PDM_CACHE_DIR"
 offline pdm sync --dev
 [ "$(offline pdm run sources 2>/dev/null)" = "$expected" ]
 
+echo "== a pdm.lock kept outside the project"
+rm -rf .venv .pdm-purifier "$PDM_CACHE_DIR" "$work/external/.pdm-purifier"
+tree_copy=$(cat pdm.lock)
+export PDM_PURIFIER_TOOL_LOCKFILE="$work/external/pdm.lock"
+export PDM_LOCKFILE="$PDM_PURIFIER_TOOL_LOCKFILE"
+pdm-purifier lock
+test -f "$work/external/pdm.lock"
+[ "$(cat pdm.lock)" = "$tree_copy" ]
+pdm-purifier prefetch
+rm -rf .venv "$PDM_CACHE_DIR"
+offline pdm sync --dev
+[ "$(offline pdm run sources 2>/dev/null)" = "$expected" ]
+[ "$(cat pdm.lock)" = "$tree_copy" ]
+
 echo "interactive tests passed"

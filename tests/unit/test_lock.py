@@ -3,6 +3,7 @@
 
 import base64
 import hashlib
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -13,6 +14,7 @@ from pdm_purifier.lock import (
     inputs_hash,
     is_sdist,
     is_universal_wheel,
+    make_editable,
     name_and_version,
     sri,
     write_pkg_info,
@@ -71,6 +73,20 @@ class Hashes(unittest.TestCase):
 
 
 class Builds(unittest.TestCase):
+    def test_copy_from_the_store_gets_a_time_that_zip_files_hold(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            checkout = Path(directory)
+            source = checkout / "pkg" / "__init__.py"
+            source.parent.mkdir()
+            source.write_text("")
+            source.chmod(0o444)
+            for path in (source, source.parent, checkout):
+                os.utime(path, (1, 1))
+            make_editable(checkout)
+            for path in (source, source.parent, checkout):
+                self.assertGreaterEqual(path.stat().st_mtime, 315532800)
+            self.assertTrue(source.stat().st_mode & 0o200)
+
     def test_write_pkg_info_keeps_an_existing_one(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory)

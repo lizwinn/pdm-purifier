@@ -23,9 +23,12 @@ nix run github:nix-purifiers/pdm-purifier -- lock
 nix run github:nix-purifiers/pdm-purifier -- prefetch
 ```
 
-Commit `pdm-purifier.lock.json`. Then build the project with Nix. The
-flake's `overlays.default` adds `buildPdmProject` to the package set, as
-nixpkgs keeps its own builders there:
+We recommend committing both lockfiles, `pdm.lock` and
+`pdm-purifier.lock.json`, to the project's repository. The builder and the
+commands look for them there. Then build the project with Nix. The
+`overlays.default` of the flake adds one attribute to the package set, the
+scope `pdm-purifier`, which holds the builder `buildPdmProject` beside the
+command and the plugin:
 
 ```nix
 {
@@ -39,7 +42,7 @@ nixpkgs keeps its own builders there:
         inherit system;
         overlays = [ pdm-purifier.overlays.default ];
       };
-      project = pkgs.buildPdmProject { src = ./.; };
+      project = pkgs.pdm-purifier.buildPdmProject { src = ./.; };
     in
     {
       packages.${system} = {
@@ -54,20 +57,22 @@ nixpkgs keeps its own builders there:
 }
 ```
 
-A package in an overlay takes the builder by name, like any other builder:
+A package in an overlay takes the scope by name:
 
 ```nix
 # package.nix
-{ buildPdmProject }:
-(buildPdmProject { src = ./.; }).packages.app
+{ pdm-purifier }:
+(pdm-purifier.buildPdmProject { src = ./.; }).packages.app
 ```
 
-`buildPdmProject` is a package for `callPackage`. It takes the packages it
-needs by name, and `buildPdmProject.override` replaces any of them. Its own
-arguments are `src` and `lockFile`, which defaults to
-`pdm-purifier.lock.json` in the project, and `fetchers`, whose `fetchurl`
-takes a company mirror or credentials and works the same way in every
-purifier. It returns:
+`buildPdmProject` is a package for `callPackage` in the scope. It takes the
+packages it needs by name, and `buildPdmProject.override` replaces any of
+them. `pdm-purifier.overrideScope` replaces what everything in the scope
+shares. Its own arguments are `src`; `lockFile`, which defaults to
+`pdm-purifier.lock.json` in the project; `pdmLock`, which defaults to
+`pdm.lock` in the project; and `fetchers`, whose `fetchurl` takes a company
+mirror or credentials and works the same way in every purifier. It
+returns:
 
 - `packages.<name>` for the project and for each local package it depends
   on by path: what `pdm build` makes, with the attributes `sdist` and
@@ -91,8 +96,9 @@ The argument `env` sets environment variables for the builds. A project that
 takes its version from git sets `PDM_BUILD_SCM_VERSION` in it, because the
 source of a flake has no `.git` directory.
 
-`lib.pdm-purifier.readLock { src, lockFile }` reads both lockfiles into the
-shape that every purifier gives, with `entries`, `outputs` and `problems`.
+`lib.pdm-purifier.readLock { src, lockFile, pdmLock }` reads both lockfiles
+into the shape that every purifier gives, with `entries`, `outputs` and
+`problems`.
 
 ## Development loop
 
@@ -133,8 +139,17 @@ packages. It runs `pdm update --no-sync` and then relocks.
 nix run github:nix-purifiers/pdm-purifier -- publish -- --username __token__ --password "$PYPI_TOKEN"
 ```
 
-Every command takes `--lockfile <path>`, or reads `PDM_PURIFIER_LOCKFILE`,
-for a lockfile that lives outside the project.
+A project can keep its build external, in the repository of the flake that
+calls the builder. That flake passes `lockFile` and `pdmLock` to
+`buildPdmProject`, and the builder uses them in place of the copies in
+`src`. Every command takes `--lockfile <path>`, or reads
+`PDM_PURIFIER_LOCKFILE`, for `pdm-purifier.lock.json`, and
+`--tool-lockfile <path>`, or reads `PDM_PURIFIER_TOOL_LOCKFILE`, for
+`pdm.lock`. With either one, `lock` and `update` write the file there and
+leave the copy in the project as it is, and `lock` starts from the copy in
+the project when the outside one does not exist yet. The dev shell of the
+flake can set `PDM_PURIFIER_LOCKFILE` and `PDM_PURIFIER_TOOL_LOCKFILE`, and
+`PDM_LOCKFILE` to the same path as the second, which plain `pdm` reads.
 
 ## Working offline
 
@@ -208,8 +223,8 @@ nix run github:nix-purifiers/pdm-purifier -- lock
 nix run github:nix-purifiers/pdm-purifier -- prefetch
 ```
 
-Commit `pdm-purifier.lock.json` in a fork, or keep it outside the
-project with `--lockfile`. Then add a `flake.nix` next to `pyproject.toml`:
+Commit `pdm.lock` and `pdm-purifier.lock.json` to your fork. Then add a
+`flake.nix` next to `pyproject.toml`, which builds PDM from the fork.
 
 ```nix
 {
@@ -223,7 +238,7 @@ project with `--lockfile`. Then add a `flake.nix` next to `pyproject.toml`:
         inherit system;
         overlays = [ pdm-purifier.overlays.default ];
       };
-      project = pkgs.buildPdmProject {
+      project = pkgs.pdm-purifier.buildPdmProject {
         src = ./.;
         # PDM takes its version from git, and the flake's source has no
         # .git directory.

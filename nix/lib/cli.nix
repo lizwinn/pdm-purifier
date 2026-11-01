@@ -11,7 +11,9 @@
 # `src` is the absolute path of the directory that holds the project and
 # the local packages it depends on by path. `projectDir` is the directory
 # of the project inside `src`. `lockFile` is the absolute path of
-# pdm-purifier.lock.json, inside the project or outside it.
+# pdm-purifier.lock.json, inside the project or outside it. `pdmLock` is the
+# absolute path of a pdm.lock outside the project, which takes the place of
+# the one in `src`.
 {
   nixpkgs,
   # The store path of the PDM, with the plugin, that the command runs.
@@ -21,6 +23,7 @@
   src,
   projectDir ? ".",
   lockFile,
+  pdmLock ? null,
   package ? null,
   pythonVersion ? null,
 }:
@@ -58,15 +61,18 @@ let
 
   buildPdmProject = pkgs.callPackage ./build-pdm-project.nix {
     purifier = import (builtins.storePath purifier) { inherit (pkgs) lib; };
-    pdm-purifier.pdm-with-plugin = builtins.storePath pdm;
+    pdm-with-plugin = builtins.storePath pdm;
   };
 
-  project = buildPdmProject {
-    inherit projectDir;
-    src = source;
-    lockFile = /. + lockFile;
-    python = if package == null then python else pkgs.python3;
-  };
+  project = buildPdmProject (
+    {
+      inherit projectDir;
+      src = source;
+      lockFile = /. + lockFile;
+      python = if package == null then python else pkgs.python3;
+    }
+    // pkgs.lib.optionalAttrs (pdmLock != null) { pdmLock = /. + pdmLock; }
+  );
 in
 if package == null then
   project.manifest

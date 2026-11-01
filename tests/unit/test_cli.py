@@ -61,6 +61,37 @@ class LockfilePath(unittest.TestCase):
         self.assertEqual(cli.state_dir(Path("/outside/pdm-purifier.lock.json")), Path("/outside/.pdm-purifier"))
 
 
+class ToolLockfile(unittest.TestCase):
+    def test_option_then_variable_then_project(self) -> None:
+        root = Path("/project")
+        with mock.patch.dict(os.environ, {"PDM_PURIFIER_TOOL_LOCKFILE": "/outside/pdm.lock"}):
+            self.assertEqual(cli.pdm_lock_path(root, Path("/given/pdm.lock")), Path("/given/pdm.lock"))
+            self.assertEqual(cli.pdm_lock_path(root, None), Path("/outside/pdm.lock"))
+        with mock.patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(cli.pdm_lock_path(root, None), root / "pdm.lock")
+
+    def test_outside_copy_starts_from_the_copy_in_the_project(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "project"
+            root.mkdir()
+            (root / "pdm.lock").write_text("tree\n")
+            outside = Path(directory) / "outside" / "pdm.lock"
+            cli.prepare_pdm_lock(root, outside)
+            self.assertEqual(outside.read_text(), "tree\n")
+            outside.write_text("changed\n")
+            cli.prepare_pdm_lock(root, outside)
+            self.assertEqual(outside.read_text(), "changed\n")
+            self.assertEqual((root / "pdm.lock").read_text(), "tree\n")
+
+    def test_the_copy_in_the_project_is_not_external(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "pdm.lock").write_text("tree\n")
+            cli.prepare_pdm_lock(root, root / "pdm.lock")
+            self.assertFalse(cli.is_external(root, root / "pdm.lock"))
+            self.assertTrue(cli.is_external(root, root / "elsewhere" / "pdm.lock"))
+
+
 class LocalDistributions(unittest.TestCase):
     def test_project_and_path_packages(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

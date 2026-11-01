@@ -176,11 +176,18 @@ PREFETCHED = ".pdm-purifier/manifest"
 PREFETCHED_INPUTS = ".pdm-purifier/inputs"
 
 
+def pdm_lock_path(root: Path) -> Path:
+    """The pdm.lock PDM uses: PDM_LOCKFILE names another one, as the
+    command does for an outside pdm.lock."""
+    named = os.environ.get("PDM_LOCKFILE")
+    return root / named if named else root / "pdm.lock"
+
+
 def inputs_hash(root: Path) -> str:
     """SHA-256 over pdm.lock and pyproject.toml, in that order: the
     inputsHash that `pdm-purifier lock` records."""
     digest = hashlib.sha256()
-    digest.update((root / "pdm.lock").read_bytes())
+    digest.update(pdm_lock_path(root).read_bytes())
     digest.update((root / "pyproject.toml").read_bytes())
     return digest.hexdigest()
 
@@ -206,7 +213,7 @@ def activate(root: Path) -> None:
     inputs = base / PREFETCHED_INPUTS
     if not manifest.exists() or not inputs.exists():
         return
-    if not (root / "pdm.lock").exists() or inputs.read_text().strip() != inputs_hash(root):
+    if not pdm_lock_path(root).exists() or inputs.read_text().strip() != inputs_hash(root):
         print(
             "pdm-purifier: pdm.lock or pyproject.toml changed since `pdm-purifier prefetch`, so PDM runs online. "
             "Run `pdm-purifier lock` and `pdm-purifier prefetch`.",

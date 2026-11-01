@@ -13,6 +13,6 @@ let
     overlays = [ flake.overlays.default ];
   };
 in
-pkgs.buildPdmProject {
+pkgs.pdm-purifier.buildPdmProject {
   src = /. + project;
 }

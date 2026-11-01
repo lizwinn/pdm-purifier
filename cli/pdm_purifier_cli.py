@@ -30,6 +30,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -38,6 +39,7 @@ from pathlib import Path
 
 LOCKFILE = "pdm-purifier.lock.json"
 LOCKFILE_ENV = "PDM_PURIFIER_LOCKFILE"
+TOOL_LOCKFILE_ENV = "PDM_PURIFIER_TOOL_LOCKFILE"
 STATE_DIR = ".pdm-purifier"
 
 
@@ -78,6 +80,30 @@ def lockfile_path(root: Path, option: Path | None) -> Path:
     return root / LOCKFILE
 
 
+def pdm_lock_path(root: Path, option: Path | None) -> Path:
+    """The pdm.lock to use: --tool-lockfile, else
+    PDM_PURIFIER_TOOL_LOCKFILE, else pdm.lock in the project. The dev shell
+    of a flake that keeps a build external can set the variable."""
+    if option is not None:
+        return option.absolute()
+    if os.environ.get(TOOL_LOCKFILE_ENV):
+        return Path(os.environ[TOOL_LOCKFILE_ENV]).absolute()
+    return root / "pdm.lock"
+
+
+def is_external(root: Path, pdm_lock: Path) -> bool:
+    return pdm_lock.resolve() != (root / "pdm.lock").resolve()
+
+
+def prepare_pdm_lock(root: Path, pdm_lock: Path) -> None:
+    """Start an outside pdm.lock from the copy in the project when it does
+    not exist yet. The copy in the project stays as it is."""
+    tree_copy = root / "pdm.lock"
+    if is_external(root, pdm_lock) and not pdm_lock.exists() and tree_copy.exists():
+        pdm_lock.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(tree_copy, pdm_lock)
+
+
 def state_dir(lockfile: Path) -> Path:
     """Where the command keeps its garbage-collector roots: .pdm-purifier/
     beside the lockfile, which for an external build is outside the
@@ -85,9 +111,9 @@ def state_dir(lockfile: Path) -> Path:
     return lockfile.parent / STATE_DIR
 
 
-def inputs_hash(root: Path) -> str:
+def inputs_hash(root: Path, pdm_lock: Path | None = None) -> str:
     digest = hashlib.sha256()
-    digest.update((root / "pdm.lock").read_bytes())
+    digest.update((pdm_lock or root / "pdm.lock").read_bytes())
     digest.update((root / "pyproject.toml").read_bytes())
     return digest.hexdigest()
 
@@ -102,23 +128,24 @@ def read_lockfile(path: Path) -> dict:
     return data
 
 
-def lock_is_current(root: Path, lockfile: Path) -> bool:
-    if not lockfile.exists() or not (root / "pdm.lock").exists():
+def lock_is_current(root: Path, lockfile: Path, pdm_lock: Path | None = None) -> bool:
+    pdm_lock = pdm_lock or root / "pdm.lock"
+    if not lockfile.exists() or not pdm_lock.exists():
         return False
-    return read_lockfile(lockfile).get("inputsHash") == inputs_hash(root)
+    return read_lockfile(lockfile).get("inputsHash") == inputs_hash(root, pdm_lock)
 
 
-def require_current(root: Path, lockfile: Path) -> None:
+def require_current(root: Path, lockfile: Path, pdm_lock: Path) -> None:
     if not lockfile.exists():
         raise Error(f"{lockfile} is missing; run `pdm-purifier lock`")
-    if not lock_is_current(root, lockfile):
-        raise Error(f"{lockfile} does not match pdm.lock and pyproject.toml; run `pdm-purifier lock`")
+    if not lock_is_current(root, lockfile, pdm_lock):
+        raise Error(f"{lockfile} does not match {pdm_lock.name} and pyproject.toml; run `pdm-purifier lock`")
 
 
-def source_root(root: Path) -> tuple[Path, str]:
+def source_root(root: Path, pdm_lock: Path | None = None) -> tuple[Path, str]:
     """The directory Nix reads, which holds the project and every local
     package pdm.lock names by path, and the project's place inside it."""
-    lock = tomllib.loads((root / "pdm.lock").read_text())
+    lock = tomllib.loads((pdm_lock or root / "pdm.lock").read_text())
     paths = [root.resolve()]
     for package in lock.get("package", []):
         if "path" in package:
@@ -127,8 +154,8 @@ def source_root(root: Path) -> tuple[Path, str]:
     return common, os.path.relpath(root.resolve(), common)
 
 
-def nix_build(root: Path, lockfile: Path, out_link: Path, **args: str) -> Path:
-    src, project_dir = source_root(root)
+def nix_build(root: Path, lockfile: Path, pdm_lock: Path, out_link: Path, **args: str) -> Path:
+    src, project_dir = source_root(root, pdm_lock)
     command = [
         "nix-build",
         str(Path(setting("PDM_PURIFIER_NIX_LIB")) / "cli.nix"),
@@ -140,6 +167,8 @@ def nix_build(root: Path, lockfile: Path, out_link: Path, **args: str) -> Path:
         "--argstr", "lockFile", str(lockfile.resolve()),
         "--out-link", str(out_link),
     ]
+    if is_external(root, pdm_lock):
+        command += ["--argstr", "pdmLock", str(pdm_lock.resolve())]
     for key, value in args.items():
         command += ["--argstr", key, value]
     out_link.parent.mkdir(parents=True, exist_ok=True)
@@ -149,26 +178,39 @@ def nix_build(root: Path, lockfile: Path, out_link: Path, **args: str) -> Path:
     return Path(result.stdout.strip().splitlines()[-1])
 
 
-def online_pdm(root: Path, *args: str) -> int:
-    """Run PDM against the network, with the plugin's serving turned off."""
+def pdm_environment(root: Path, pdm_lock: Path) -> dict[str, str]:
+    """The environment of a PDM run without the plugin's variables. PDM
+    reads an outside pdm.lock from PDM_LOCKFILE."""
     env = {k: v for k, v in os.environ.items() if not k.startswith("PDM_PURIFIER_")}
+    if is_external(root, pdm_lock):
+        env["PDM_LOCKFILE"] = str(pdm_lock.resolve())
+    return env
+
+
+def online_pdm(root: Path, pdm_lock: Path, *args: str) -> int:
+    """Run PDM against the network, with the plugin's serving turned off."""
+    env = pdm_environment(root, pdm_lock)
     env["PDM_PURIFIER_MODE"] = "off"
     return subprocess.run([pdm_executable(), *args], cwd=root, env=env).returncode
 
 
-def lock(root: Path, lockfile: Path) -> None:
+def lock(root: Path, lockfile: Path, pdm_lock: Path) -> None:
     """Write pdm-purifier.lock.json for pdm.lock as it is. Where pdm.lock is
     missing, `pdm lock` writes it; where it no longer matches
     pyproject.toml, `pdm lock --update-reuse` brings it up to date and keeps
-    every pinned version it can."""
-    if not (root / "pdm.lock").exists():
-        if online_pdm(root, "lock") != 0:
+    every pinned version it can. An outside pdm.lock starts as a copy of the
+    one in the project, which stays as it is."""
+    prepare_pdm_lock(root, pdm_lock)
+    if not pdm_lock.exists():
+        if online_pdm(root, pdm_lock, "lock") != 0:
             raise Error("`pdm lock` failed")
-    elif online_pdm(root, "lock", "--check") != 0:
-        if online_pdm(root, "lock", "--update-reuse") != 0:
+    elif online_pdm(root, pdm_lock, "lock", "--check") != 0:
+        if online_pdm(root, pdm_lock, "lock", "--update-reuse") != 0:
             raise Error("`pdm lock --update-reuse` failed")
     with tempfile.TemporaryDirectory(prefix="pdm-purifier-lock-") as work:
-        env = dict(os.environ)
+        env = pdm_environment(root, pdm_lock) | {
+            k: v for k, v in os.environ.items() if k.startswith("PDM_PURIFIER_")
+        }
         env.update(
             PDM_PURIFIER_MODE="record",
             PDM_PURIFIER_RECORD=str(Path(work) / "record.jsonl"),
@@ -183,17 +225,18 @@ def lock(root: Path, lockfile: Path) -> None:
         raise Error("the lock run failed")
 
 
-def update(root: Path, lockfile: Path, packages: list[str]) -> None:
+def update(root: Path, lockfile: Path, pdm_lock: Path, packages: list[str]) -> None:
     """Update pdm.lock with `pdm update`, for every package or the named
     ones, without installing anything, and then relock
     pdm-purifier.lock.json against it."""
-    if online_pdm(root, "update", "--no-sync", *packages) != 0:
+    prepare_pdm_lock(root, pdm_lock)
+    if online_pdm(root, pdm_lock, "update", "--no-sync", *packages) != 0:
         raise Error("`pdm update` failed")
-    lock(root, lockfile)
+    lock(root, lockfile, pdm_lock)
 
 
-def project_python_version(root: Path) -> str | None:
-    env = {k: v for k, v in os.environ.items() if not k.startswith("PDM_PURIFIER_")}
+def project_python_version(root: Path, pdm_lock: Path) -> str | None:
+    env = pdm_environment(root, pdm_lock)
     env["PDM_PURIFIER_MODE"] = "off"
     found = subprocess.run(
         [pdm_executable(), "info", "--python"],
@@ -212,7 +255,7 @@ def project_python_version(root: Path) -> str | None:
     return version.stdout.strip() if version.returncode == 0 else None
 
 
-def prefetch(root: Path, lockfile: Path) -> None:
+def prefetch(root: Path, lockfile: Path, pdm_lock: Path) -> None:
     """Fetch every locked file this system and Python install into the Nix
     store, keep them with a garbage-collector root in .pdm-purifier/, and
     install every locked group into the project's environment from them.
@@ -220,16 +263,16 @@ def prefetch(root: Path, lockfile: Path) -> None:
     .pdm-purifier/inputs records the hash of pdm.lock and pyproject.toml the
     manifest was made for. The plugin serves plain `pdm` from the manifest
     while the project still has that hash."""
-    require_current(root, lockfile)
+    require_current(root, lockfile, pdm_lock)
     extra = {}
-    version = project_python_version(root)
+    version = project_python_version(root, pdm_lock)
     if version is not None:
         extra["pythonVersion"] = version
-    nix_build(root, lockfile, state_dir(lockfile) / "manifest", **extra)
-    (state_dir(lockfile) / "inputs").write_text(inputs_hash(root) + "\n")
+    nix_build(root, lockfile, pdm_lock, state_dir(lockfile) / "manifest", **extra)
+    (state_dir(lockfile) / "inputs").write_text(inputs_hash(root, pdm_lock) + "\n")
     # The plugin finds the manifest beside the lockfile, and serves PDM from
     # it.
-    env = {k: v for k, v in os.environ.items() if not k.startswith("PDM_PURIFIER_")}
+    env = pdm_environment(root, pdm_lock)
     env[LOCKFILE_ENV] = str(lockfile)
     result = subprocess.run([pdm_executable(), "sync", "--dev"], cwd=root, env=env)
     if result.returncode != 0:
@@ -241,7 +284,7 @@ def normalize_name(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).lower()
 
 
-def local_distributions(root: Path) -> dict[str, str]:
+def local_distributions(root: Path, pdm_lock: Path | None = None) -> dict[str, str]:
     """The project's local distributions by name, with their paths: the
     project itself when PDM builds it, and each package pdm.lock names by a
     path to a directory. The Nix library finds the same ones
@@ -250,7 +293,7 @@ def local_distributions(root: Path) -> dict[str, str]:
     pyproject = tomllib.loads((root / "pyproject.toml").read_text())
     if pyproject.get("tool", {}).get("pdm", {}).get("distribution", "build-system" in pyproject):
         found[normalize_name(pyproject.get("project", {}).get("name", root.name))] = "."
-    for package in tomllib.loads((root / "pdm.lock").read_text()).get("package", []):
+    for package in tomllib.loads((pdm_lock or root / "pdm.lock").read_text()).get("package", []):
         manifest = root / package.get("path", "") / "pyproject.toml"
         if "path" in package and manifest.exists():
             name = tomllib.loads(manifest.read_text()).get("project", {}).get("name", Path(package["path"]).name)
@@ -258,19 +301,19 @@ def local_distributions(root: Path) -> dict[str, str]:
     return found
 
 
-def publish(root: Path, lockfile: Path, packages: list[str], publish_args: list[str]) -> None:
-    require_current(root, lockfile)
-    by_name = local_distributions(root)
+def publish(root: Path, lockfile: Path, pdm_lock: Path, packages: list[str], publish_args: list[str]) -> None:
+    require_current(root, lockfile, pdm_lock)
+    by_name = local_distributions(root, pdm_lock)
     names = packages or sorted(by_name)
     if not names:
         raise Error("this project builds no distribution to publish")
     for name in names:
         if name not in by_name:
             raise Error(f"{name} is not a local distribution of this project; they are {', '.join(sorted(by_name))}")
-        dist = nix_build(root, lockfile, state_dir(lockfile) / f"dist-{name}", package=name)
+        dist = nix_build(root, lockfile, pdm_lock, state_dir(lockfile) / f"dist-{name}", package=name)
         package_dir = (root / by_name[name]).resolve()
         log(f"publishing {name} from {dist}")
-        env = {k: v for k, v in os.environ.items() if not k.startswith("PDM_PURIFIER_")}
+        env = pdm_environment(root, pdm_lock)
         env["PDM_PURIFIER_MODE"] = "off"
         result = subprocess.run(
             [pdm_executable(), "publish", "--project", str(package_dir), "--no-build", "--dest", str(dist), *publish_args],
@@ -284,6 +327,11 @@ def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     parser = argparse.ArgumentParser(prog="pdm-purifier", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--lockfile", type=Path, help=f"the pdm-purifier lockfile (default: ${LOCKFILE_ENV}, else {LOCKFILE} next to pdm.lock)")
+    parser.add_argument(
+        "--tool-lockfile",
+        type=Path,
+        help=f"the pdm.lock to use (default: ${TOOL_LOCKFILE_ENV}, else pdm.lock in the project)",
+    )
     verbs = parser.add_subparsers(dest="verb", required=True)
     verbs.add_parser("lock", help="write pdm-purifier.lock.json, keeping pdm.lock's resolution")
     update_parser = verbs.add_parser("update", help="update pdm.lock with `pdm update`, then relock")
@@ -296,17 +344,18 @@ def main(argv: list[str] | None = None) -> int:
     try:
         root = project_root()
         lockfile = lockfile_path(root, options.lockfile)
+        pdm_lock = pdm_lock_path(root, options.tool_lockfile)
         if options.verb == "lock":
-            lock(root, lockfile)
+            lock(root, lockfile, pdm_lock)
         elif options.verb == "update":
-            update(root, lockfile, options.packages)
+            update(root, lockfile, pdm_lock, options.packages)
         elif options.verb == "prefetch":
-            prefetch(root, lockfile)
+            prefetch(root, lockfile, pdm_lock)
         elif options.verb == "publish":
             extra = options.publish_args
             if extra and extra[0] == "--":
                 extra = extra[1:]
-            publish(root, lockfile, options.package, extra)
+            publish(root, lockfile, pdm_lock, options.package, extra)
     except Error as error:
         log(str(error))
         return 1

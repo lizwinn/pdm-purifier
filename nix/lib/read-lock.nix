@@ -4,7 +4,7 @@
 # pdm-purifier.lock.json of a project into the lock in memory of the
 # purifier library.
 #
-#   lib.pdm-purifier.readLock { src, lockFile ? <in tree>, projectDir ? "." }
+#   lib.pdm-purifier.readLock { src, lockFile ? <in tree>, pdmLock ? <in tree>, projectDir ? "." }
 #   # =>
 #   {
 #     purifier = "pdm-purifier";
@@ -30,6 +30,8 @@
   projectDir ? ".",
   # pdm-purifier.lock.json, in the project or outside `src`.
   lockFile ? (if projectDir == "." then src else src + "/${projectDir}") + "/pdm-purifier.lock.json",
+  # pdm.lock, in the project or outside `src`.
+  pdmLock ? (if projectDir == "." then src else src + "/${projectDir}") + "/pdm.lock",
 }:
 let
   inherit (builtins)
@@ -42,7 +44,7 @@ let
 
   root = if projectDir == "." then src else src + "/${projectDir}";
   read = import ./lock.nix {
-    inherit root lockFile;
+    inherit root lockFile pdmLock;
     onError = problem: { inherit problem; };
   };
   usable = !(read ? problem);

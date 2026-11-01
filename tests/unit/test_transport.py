@@ -159,6 +159,14 @@ class Activation(unittest.TestCase):
         env = self.activate({"PDM_PURIFIER_LOCKFILE": str(outside / "pdm-purifier.lock.json")})
         self.assertEqual(env["PDM_PURIFIER_MODE"], "serve")
 
+    def test_outside_pdm_lock_named_by_pdm_is_the_one_compared(self) -> None:
+        outside = Path(self.dir.name) / "outside.lock"
+        outside.write_text("lock\n")
+        (self.root / "pdm.lock").write_text("tree copy changed\n")
+        self.assertNotIn("PDM_PURIFIER_MODE", self.activate({}))
+        env = self.activate({"PDM_LOCKFILE": str(outside)})
+        self.assertEqual(env["PDM_PURIFIER_MODE"], "serve")
+
     def test_mode_off_runs_online(self) -> None:
         self.assertEqual(self.activate({"PDM_PURIFIER_MODE": "off"})["PDM_PURIFIER_MODE"], "off")
 

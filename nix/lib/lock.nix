@@ -18,6 +18,7 @@
   # default pdm-purifier.lock.json.
   root,
   lockFile ? root + "/pdm-purifier.lock.json",
+  pdmLock ? root + "/pdm.lock",
   # What a refusal returns, given its message. The checks of this
   # repository pass a function that keeps the message, to test it.
   onError ? throw,
@@ -58,12 +59,10 @@ let
   ];
   missing = filter (field: !(data ? ${field})) fields;
 
-  inputsHash = hashString "sha256" (
-    readFile (root + "/pdm.lock") + readFile (root + "/pyproject.toml")
-  );
+  inputsHash = hashString "sha256" (readFile pdmLock + readFile (root + "/pyproject.toml"));
   contentHash = hashString "sha256" (toJSON (removeAttrs data [ "contentHash" ]));
 
-  packages = (builtins.fromTOML (readFile (root + "/pdm.lock"))).package or [ ];
+  packages = (builtins.fromTOML (readFile pdmLock)).package or [ ];
   vcsKeys = [
     "git"
     "hg"

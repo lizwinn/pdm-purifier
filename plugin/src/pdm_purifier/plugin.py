@@ -97,10 +97,9 @@ def _patch_version_control() -> None:
         if location.exists():
             shutil.rmtree(location)
         shutil.copytree(entry["store"], location, symlinks=True)
-        for path in [location, *location.rglob("*")]:
-            if not path.is_symlink():
-                path.chmod(path.stat().st_mode | 0o200)
-        from pdm_purifier.lock import write_pkg_info
+        from pdm_purifier.lock import make_editable, write_pkg_info
+
+        make_editable(location)
 
         subdirectory = entry.get("subdirectory")
         write_pkg_info(location / subdirectory if subdirectory else location, entry["name"], entry["version"])

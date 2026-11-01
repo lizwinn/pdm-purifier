@@ -32,21 +32,29 @@
 # - `manifest`: the manifest that the plugin serves PDM from, which
 #   `pdm-purifier prefetch` keeps in .pdm-purifier/manifest.
 #
-# The flake's `overlays.default` adds this file to the package set as
-# `buildPdmProject`, through `callPackage`. It takes the packages it needs by
-# name, and `buildPdmProject.override` replaces any of them.
+# The flake's `overlays.default` adds this file to the scope
+# `pkgs.pdm-purifier` as `buildPdmProject`, through `callPackage`. It takes
+# the packages it needs by name, and `buildPdmProject.override` replaces any
+# of them.
 {
   lib,
-  pkgs,
   stdenv,
   runCommand,
   writeText,
   git,
   glibc,
   python3,
-  # The scope of this flake's packages: `pdm-with-plugin` is the PDM that
-  # runs every build.
-  pdm-purifier,
+  # The fetchers and the tools that the shared library's fetchEntry builds
+  # with, for the kinds of entry this lock has.
+  fetchurl,
+  fetchgit,
+  fetchhg,
+  fetchsvn,
+  fetchbzr,
+  unzip,
+  zstd,
+  # The PDM, with the pdm-purifier plugin, that runs every build.
+  pdm-with-plugin,
   # The shared purifier library (github:nix-purifiers/purifier).
   purifier,
 }:
@@ -74,6 +82,10 @@
   # `src` holds pdm.lock and the project, and the flake that calls the
   # builder keeps pdm-purifier.lock.json.
   lockFile ? (if projectDir == "." then src else src + "/${projectDir}") + "/pdm-purifier.lock.json",
+  # pdm.lock. A file outside `src` takes the place of the copy in `src`, for
+  # a project whose committed pdm.lock is missing, stale or written by
+  # another version of PDM.
+  pdmLock ? (if projectDir == "." then src else src + "/${projectDir}") + "/pdm.lock",
   # What the builds of sdists and local packages need beyond Python and a C
   # compiler: tools such as pkg-config, and the system libraries a C
   # extension links against.
@@ -94,20 +106,54 @@ let
     listToAttrs
     map
     ;
-  pdmWithPlugin = pdm-purifier.pdm-with-plugin;
+  pdmWithPlugin = pdm-with-plugin;
 
   originalRoot = if projectDir == "." then src else src + "/${projectDir}";
+  # The source the builds read: `src`, with the pdm.lock given in place of
+  # the copy in it when that file is not the copy in `src`.
+  src' =
+    if toString pdmLock == toString (originalRoot + "/pdm.lock") then
+      src
+    else
+      runCommand "source" { } ''
+        cp -r ${src} "$out"
+        chmod -R u+w "$out"
+        cp ${pdmLock} "$out"/${lib.escapeShellArg projectDir}/pdm.lock
+      '';
   # The lock in memory (read-lock.nix), which checkLock of the shared
   # library refuses with its problems, each naming `pdm-purifier lock`.
   lock = purifier.checkLock (
-    import ./read-lock.nix { inherit lib; } { inherit src projectDir lockFile; }
+    import ./read-lock.nix { inherit lib; } {
+      inherit
+        src
+        projectDir
+        lockFile
+        pdmLock
+        ;
+    }
   );
   locked = purifier.entriesFor stdenv.hostPlatform.system lock;
   # The store path of a download entry of the lock, from the shared purifier
   # library: a file, or a version control checkout. A git entry with
   # `leaveDotGit` comes with a .git directory that the library rebuilds
   # from the entry's commit object, which PDM clones from.
-  fetchEntry = purifier.fetchEntry (fetchers // { inherit pkgs; });
+  fetchEntry = purifier.fetchEntry (
+    {
+      inherit
+        runCommand
+        unzip
+        zstd
+        python3
+        writeText
+        fetchurl
+        fetchgit
+        fetchhg
+        fetchsvn
+        fetchbzr
+        ;
+    }
+    // fetchers
+  );
   pyproject = builtins.fromTOML (builtins.readFile (originalRoot + "/pyproject.toml"));
   projectName = pyproject.project.name or "project";
 
@@ -264,7 +310,7 @@ let
   environment = stdenv.mkDerivation {
     name = "${projectName}-environment";
     inherit buildInputs env;
-    inherit src;
+    src = src';
     nativeBuildInputs = buildTools;
     dontConfigure = true;
     dontFixup = true;
@@ -291,7 +337,7 @@ let
       dist = stdenv.mkDerivation {
         name = "${output.name}-dist";
         inherit buildInputs env;
-        inherit src;
+        src = src';
         nativeBuildInputs = buildTools;
         dontConfigure = true;
         dontFixup = true;
@@ -301,6 +347,14 @@ let
           cd ${lib.escapeShellArg projectDir}
           pdm use --first --ignore-remembered --project ${lib.escapeShellArg output.path} ${python.interpreter}
           pdm build --no-clean --dest "$out" --project ${lib.escapeShellArg output.path}
+          # The gzip header of an sdist holds the time of the build, which
+          # makes two builds of the same sources differ. Compressing the
+          # archive again without a name and a time makes the bytes depend
+          # on the sources alone.
+          for sdist in "$out"/*.tar.gz; do
+            gzip -dc "$sdist" | gzip -n > "$sdist.tmp"
+            mv "$sdist.tmp" "$sdist"
+          done
           runHook postBuild
         '';
         dontInstall = true;
@@ -350,7 +404,7 @@ let
   tests = stdenv.mkDerivation {
     name = "${projectName}-tests";
     inherit buildInputs env;
-    inherit src;
+    src = src';
     nativeBuildInputs = buildTools;
     dontConfigure = true;
     dontFixup = true;

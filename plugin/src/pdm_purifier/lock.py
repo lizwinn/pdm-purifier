@@ -63,6 +63,8 @@ LOCKFILE = "pdm-purifier.lock.json"
 VCS_KEYS = ("git", "hg", "svn", "bzr")
 # The architectures of the Linux systems that the Nix build supports.
 SUPPORTED_ARCHITECTURES = ("x86_64", "aarch64")
+# 2000-01-01 00:00:00 UTC, a time that zip files can hold.
+STORE_COPY_TIME = 946684800
 
 
 class LockError(Exception):
@@ -73,11 +75,13 @@ def sri(hex_digest: str) -> str:
     return "sha256-" + base64.b64encode(bytes.fromhex(hex_digest)).decode()
 
 
-def inputs_hash(root: Path) -> str:
+def inputs_hash(root: Path, pdm_lock: Path | None = None) -> str:
     """SHA-256 over pdm.lock and pyproject.toml, in that order. The Nix
-    library computes the same hash to refuse a stale pdm-purifier.lock.json."""
+    library computes the same hash to refuse a stale pdm-purifier.lock.json.
+    ``pdm_lock`` is the pdm.lock PDM uses, which is the one in the project
+    unless PDM_LOCKFILE names another."""
     digest = hashlib.sha256()
-    digest.update((root / "pdm.lock").read_bytes())
+    digest.update((pdm_lock or root / "pdm.lock").read_bytes())
     digest.update((root / "pyproject.toml").read_bytes())
     return digest.hexdigest()
 
@@ -126,6 +130,16 @@ def has_linux_wheel(filename: str, arch: str, python: tuple[int, int]) -> bool:
 
 def is_sdist(filename: str) -> bool:
     return not filename.endswith(".whl")
+
+
+def make_editable(checkout: Path) -> None:
+    """Make a copy of a checkout from the Nix store writable, and give every
+    file the time 2000-01-01. The store gives its files the time 1970, which
+    build backends that write zip files, such as flit-core, refuse."""
+    for path in [checkout, *checkout.rglob("*")]:
+        if not path.is_symlink():
+            path.chmod(path.stat().st_mode | 0o200)
+            os.utime(path, (STORE_COPY_TIME, STORE_COPY_TIME))
 
 
 def write_pkg_info(source: Path, name: str, version: str) -> None:
@@ -357,9 +371,7 @@ class Locker:
         checkout = self.work / vcs / f"{normalize_name(name)}-{rev[:12]}"
         if not checkout.exists():
             shutil.copytree(store, checkout, symlinks=True)
-            for path in [checkout, *checkout.rglob("*")]:
-                if not path.is_symlink():
-                    path.chmod(path.stat().st_mode | 0o200)
+            make_editable(checkout)
         source = checkout / subdirectory if subdirectory else checkout
         write_pkg_info(source, name, package["version"])
         return source
@@ -508,7 +520,7 @@ class Locker:
 
         return {
             "version": FORMAT_VERSION,
-            "inputsHash": inputs_hash(self.root),
+            "inputsHash": inputs_hash(self.root, Path(self.project.lockfile._path)),
             "urls": dict(sorted(self.urls.items())),
             "buildRequirements": [self.build_requirements[k] for k in sorted(self.build_requirements)],
             "checkouts": dict(sorted(self.checkouts.items())),

@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: MIT
 #
-# The default package overlay. It adds the packages of pkgs/ under
-# `pkgs.pdm-purifier` (`.plugin`, `.pdm-with-plugin`, `.cli`), and the builder
-# `pkgs.buildPdmProject` (nix/lib/build-pdm-project.nix). The builder is a
-# package for `callPackage`, so `buildPdmProject.override` replaces the
-# packages it takes. A consumer that lists this flake in `projects` holds
+# The default package overlay. It adds one attribute to the package set, the
+# scope `pkgs.pdm-purifier`, which holds the packages of pkgs/ (`.plugin`,
+# `.pdm-with-plugin`, `.cli`) and the builder `.buildPdmProject`
+# (nix/lib/build-pdm-project.nix). The builder is a package for
+# `callPackage` in the scope, so `buildPdmProject.override` replaces the
+# packages it takes, and `pdm-purifier.overrideScope` replaces what the
+# whole scope shares. A consumer that lists this flake in `projects` holds
 # the overlay as `pdm-purifier/default`, which its package sets apply by
 # default.
 #
@@ -22,11 +24,13 @@ in
     in
     added
     // {
-      pdm-purifier = added.pdm-purifier // {
-        cli = added.pdm-purifier.cli.override { purifierSource = closure-inputs.purifier; };
-      };
-      buildPdmProject = final.callPackage ../../nix/lib/build-pdm-project.nix {
-        inherit (closure-lib) purifier;
-      };
+      pdm-purifier = added.pdm-purifier.overrideScope (
+        self: super: {
+          cli = super.cli.override { purifierSource = closure-inputs.purifier; };
+          buildPdmProject = self.callPackage ../../nix/lib/build-pdm-project.nix {
+            inherit (closure-lib) purifier;
+          };
+        }
+      );
     };
 }

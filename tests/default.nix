@@ -42,7 +42,7 @@ let
     };
   fixture = fixtureWithout [ ];
 
-  build = (pkgs.extend overlay).buildPdmProject;
+  build = (pkgs.extend overlay).pdm-purifier.buildPdmProject;
 
   simple = build { src = fixture "simple"; };
   sources = build { src = fixture "sources"; };
@@ -257,19 +257,35 @@ in
     '';
 
   # The simple fixture kept external: its `src` holds the project and
-  # pdm.lock, and the build reads pdm-purifier.lock.json from outside it.
+  # pdm.lock, and the build reads pdm-purifier.lock.json from outside it. A
+  # second build also reads pdm.lock from outside: its `src` has neither
+  # lockfile.
   conformance-external =
     let
-      external = build {
-        src = fixtureWithout [ "pdm-purifier.lock.json" ] "simple";
+      outside = {
         lockFile = builtins.path {
           path = ./fixtures/simple/pdm-purifier.lock.json;
           name = "pdm-purifier.lock.json";
         };
       };
+      external = build ({ src = fixtureWithout [ "pdm-purifier.lock.json" ] "simple"; } // outside);
+      replaced = build (
+        {
+          src = fixtureWithout [
+            "pdm-purifier.lock.json"
+            "pdm.lock"
+          ] "simple";
+          pdmLock = builtins.path {
+            path = ./fixtures/simple/pdm.lock;
+            name = "pdm.lock";
+          };
+        }
+        // outside
+      );
     in
     runCommand "conformance-external" { } ''
       [ "$(${lib.getExe external.programs.simple} World)" = "Hello, World, from simple" ]
+      [ "$(${lib.getExe replaced.programs.simple} World)" = "Hello, World, from simple" ]
       touch $out
     '';
 
