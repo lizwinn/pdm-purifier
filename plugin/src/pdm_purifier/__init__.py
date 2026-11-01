@@ -97,6 +97,10 @@ def _patch_version_control() -> None:
         for path in [location, *location.rglob("*")]:
             if not path.is_symlink():
                 path.chmod(path.stat().st_mode | 0o200)
+        from pdm_purifier.lock import write_pkg_info
+
+        subdirectory = entry.get("subdirectory")
+        write_pkg_info(location / subdirectory if subdirectory else location, entry["name"], entry["version"])
         served[str(Path(location).resolve())] = entry["rev"]
         return None
 

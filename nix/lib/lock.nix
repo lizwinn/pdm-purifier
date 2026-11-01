@@ -22,10 +22,14 @@ let
     else
       throw "pdm-purifier: ${toString lockFile} is missing. Run `pdm-purifier lock` and commit it.";
 
-  inputsHash = hashString "sha256" (readFile (root + "/pdm.lock") + readFile (root + "/pyproject.toml"));
+  inputsHash = hashString "sha256" (
+    readFile (root + "/pdm.lock") + readFile (root + "/pyproject.toml")
+  );
 in
 if (data.version or null) != version then
-  throw "pdm-purifier: pdm-purifier.lock.json has format version ${toString (data.version or "none")}, and this library reads version ${toString version}. Run `pdm-purifier lock` with this pdm-purifier."
+  throw "pdm-purifier: pdm-purifier.lock.json has format version ${
+    toString (data.version or "none")
+  }, and this library reads version ${toString version}. Run `pdm-purifier lock` with this pdm-purifier."
 else if data.inputsHash != inputsHash then
   throw "pdm-purifier: pdm-purifier.lock.json does not match pdm.lock and pyproject.toml. Run `pdm-purifier lock`."
 else

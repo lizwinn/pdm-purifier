@@ -169,7 +169,9 @@
       },
       "hash": "sha256-aakXTF5zXrbLCUsACnI5sIBDiXO8ztzOKJSvxC2lI+o=",
       "name": "python-dateutil",
-      "path": "bzr/python-dateutil-135"
+      "path": "bzr/python-dateutil-135",
+      "subdirectory": null,
+      "version": "2.2"
     },
     {
       "hash": "sha256-sSSMcFf/yYz5iHGnHnA1dupMmf8KNy+hPvRgciGaDgk=",
@@ -178,18 +180,22 @@
         "url": "https://hg.sr.ht/~olly/yoyo"
       },
       "name": "yoyo-migrations",
-      "path": "hg/yoyo-migrations-6d255163e92b"
+      "path": "hg/yoyo-migrations-6d255163e92b",
+      "subdirectory": null,
+      "version": "9.0.1.dev0"
     },
     {
       "hash": "sha256-gWsXllpPwyUktWaoexChFllgT6/ewg3bL6YQdSkVVMg=",
       "name": "docutils",
       "path": "svn/docutils-10409",
+      "subdirectory": null,
       "svn": {
         "ignoreExternals": false,
         "ignoreKeywords": false,
         "rev": "10409",
         "url": "https://svn.code.sf.net/p/docutils/code/trunk/docutils"
-      }
+      },
+      "version": "1.0b1.dev0"
     }
   ],
   "findLinks": [],

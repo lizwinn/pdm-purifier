@@ -95,6 +95,17 @@ def is_sdist(filename: str) -> bool:
     return not filename.endswith(".whl")
 
 
+def write_pkg_info(source: Path, name: str, version: str) -> None:
+    """Give a checkout without version control metadata the version pdm.lock
+    pins. A Mercurial, Subversion or Bazaar checkout from Nix has no .hg,
+    .svn or .bzr directory, so setuptools-scm (and hatch-vcs, which uses it)
+    cannot compute the version from history. setuptools-scm then reads the
+    version from PKG-INFO, as it does in an sdist."""
+    pkg_info = source / "PKG-INFO"
+    if not pkg_info.exists():
+        pkg_info.write_text(f"Metadata-Version: 2.1\nName: {name}\nVersion: {version}\n")
+
+
 def wheel_scripts(wheel: Path) -> dict[str, list[str]]:
     """The console and GUI scripts a wheel installs, from its entry_points.txt."""
     import configparser
@@ -288,8 +299,11 @@ class Locker:
             # externals and expands keywords.
             fields.update(ignoreExternals=False, ignoreKeywords=False)
         sri_hash, store = self.prefetch_other(vcs, fields)
+        subdirectory = package.get("subdirectory")
         self.checkouts[url] = {
             "name": name,
+            "version": package["version"],
+            "subdirectory": subdirectory,
             "path": f"{vcs}/{normalize_name(name)}-{rev[:12]}",
             vcs: fields,
             "hash": sri_hash,
@@ -300,8 +314,9 @@ class Locker:
             for path in [checkout, *checkout.rglob("*")]:
                 if not path.is_symlink():
                     path.chmod(path.stat().st_mode | 0o200)
-        subdirectory = package.get("subdirectory")
-        return checkout / subdirectory if subdirectory else checkout
+        source = checkout / subdirectory if subdirectory else checkout
+        write_pkg_info(source, name, package["version"])
+        return source
 
     def lock_git_package(self, package: dict) -> Path:
         """Lock a git dependency and its submodules, and return its checkout,

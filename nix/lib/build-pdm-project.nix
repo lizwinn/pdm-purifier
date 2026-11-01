@@ -135,7 +135,12 @@ let
       }
     else if entry ? svn then
       fetchsvn {
-        inherit (entry.svn) url rev ignoreExternals ignoreKeywords;
+        inherit (entry.svn)
+          url
+          rev
+          ignoreExternals
+          ignoreKeywords
+          ;
         inherit (entry) hash;
       }
     else if entry ? bzr then
@@ -188,6 +193,8 @@ let
         {
           vcs = kind;
           inherit (entry.${kind}) url rev;
+          inherit (entry) name version;
+          subdirectory = entry.subdirectory or null;
           store = "${entry.store}";
         }
       ) otherCheckouts;
