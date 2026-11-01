@@ -1,0 +1,94 @@
+{
+  "artifacts": [
+    {
+      "file": "attrs-26.1.0-py3-none-any.whl",
+      "hash": "sha256-xkeqShLfutkzPKTnH+Yt3Db05jstJgo3qLg9LwQ6wwk=",
+      "mirrors": [],
+      "name": "attrs",
+      "path": "attrs-26.1.0-py3-none-any.whl",
+      "requiresPython": ">=3.9",
+      "url": "https://files.pythonhosted.org/packages/64/b4/17d4b0b2a2dc85a6df63d1157e028ed19f90d4cd97c36717afef2bc2f395/attrs-26.1.0-py3-none-any.whl",
+      "version": "26.1.0"
+    },
+    {
+      "file": "attrs-26.1.0.tar.gz",
+      "hash": "sha256-0DzricsyKo/XBtT7kZQHN7ZkKqNpmP4TCpvJbJhe/zI=",
+      "mirrors": [],
+      "name": "attrs",
+      "path": "attrs-26.1.0.tar.gz",
+      "requiresPython": ">=3.9",
+      "url": "https://files.pythonhosted.org/packages/9a/8e/82a0fe20a541c03148528be8cac2408564a6c9a0cc7e9171802bc1d26985/attrs-26.1.0.tar.gz",
+      "version": "26.1.0"
+    },
+    {
+      "file": "docopt-0.6.2.tar.gz",
+      "hash": "sha256-SbOoJSgL1ms6qDWF71nEqMgvLIpSLb51SovI0IyFxJE=",
+      "mirrors": [],
+      "name": "docopt",
+      "path": "docopt-0.6.2.tar.gz",
+      "requiresPython": null,
+      "url": "https://files.pythonhosted.org/packages/a2/55/8f8cab2afd404cf578136ef2cc5dfb50baa1761b68c9da1fb1e4eed343c9/docopt-0.6.2.tar.gz",
+      "version": "0.6.2"
+    },
+    {
+      "file": "pdm_backend-2.5.0-py3-none-any.whl",
+      "hash": "sha256-W4dGtWehah/VBs5m7ijonUY3RSb1IjiqG5bMLAgkXGM=",
+      "mirrors": [],
+      "name": "pdm-backend",
+      "path": "pdm_backend-2.5.0-py3-none-any.whl",
+      "requiresPython": ">=3.9",
+      "url": "https://files.pythonhosted.org/packages/5e/a6/c743c589188f9e45e1a7c8f3e2e725f9b5df5decd72779fbfc1695b45866/pdm_backend-2.5.0-py3-none-any.whl",
+      "version": "2.5.0"
+    },
+    {
+      "file": "pdm_backend-2.5.0.tar.gz",
+      "hash": "sha256-eVO5lFY9MVF1XjNkudDP6BftDq7N8nyPd39BLSa82Yo=",
+      "mirrors": [],
+      "name": "pdm-backend",
+      "path": "pdm_backend-2.5.0.tar.gz",
+      "requiresPython": ">=3.9",
+      "url": "https://files.pythonhosted.org/packages/fc/d5/a82f533ed51f91a2183faf67a1fcb3b759615ffeca95d05b3e7648bf84bf/pdm_backend-2.5.0.tar.gz",
+      "version": "2.5.0"
+    },
+    {
+      "file": "setuptools-84.2.1-py3-none-any.whl",
+      "hash": "sha256-yhQLRdUyWpR4+IDjUUhPYv7xXzNkYuRJygwDyHPVicI=",
+      "mirrors": [],
+      "name": "setuptools",
+      "path": "setuptools-84.2.1-py3-none-any.whl",
+      "requiresPython": ">=3.10",
+      "url": "https://files.pythonhosted.org/packages/ef/55/6dc6d6bb953bdfc52519a0059592c52b6e3b8ad51cf8256dffceb55b0610/setuptools-84.2.1-py3-none-any.whl",
+      "version": "84.2.1"
+    },
+    {
+      "file": "setuptools-84.2.1.tar.gz",
+      "hash": "sha256-P/iztUkqCqZpYPRBk2Woa4TgEwcNQxPk1KaJT11k1rw=",
+      "mirrors": [],
+      "name": "setuptools",
+      "path": "setuptools-84.2.1.tar.gz",
+      "requiresPython": ">=3.10",
+      "url": "https://files.pythonhosted.org/packages/70/b3/c19426f783614d625699a4b247faf628ea9ab1db228674491767b417f9e1/setuptools-84.2.1.tar.gz",
+      "version": "84.2.1"
+    }
+  ],
+  "findLinks": [],
+  "git": [],
+  "inputsHash": "cf56bb80ac4443697c7a3c714a8ed60298da1a1df55c6c14aaca0e08404e21ba",
+  "outputs": [
+    {
+      "name": "simple",
+      "path": ".",
+      "pure": true,
+      "scripts": {
+        "console": [
+          "simple"
+        ],
+        "gui": []
+      },
+      "sdist": "simple-0.1.0.tar.gz",
+      "version": "0.1.0",
+      "wheel": "simple-0.1.0-py3-none-any.whl"
+    }
+  ],
+  "version": 1
+}

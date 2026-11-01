@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: MIT
+#
+# The `pdm-purifier` command. It runs the PDM of this package set with the
+# plugin, which is also the PDM that buildPdmProject runs, and builds with
+# the Nix library and the nixpkgs of this package set.
+{
+  lib,
+  stdenvNoCC,
+  makeWrapper,
+  mkShell,
+  python3,
+  git,
+  nix-prefetch-git,
+  path,
+  pdm-with-plugin,
+}:
+let
+  pdm = pdm-with-plugin;
+in
+stdenvNoCC.mkDerivation (finalAttrs: {
+  pname = "pdm-purifier";
+  version = lib.removeSuffix "\n" (builtins.readFile ../../version.txt);
+
+  src = lib.fileset.toSource {
+    root = ../..;
+    fileset = lib.fileset.unions [
+      ../../cli
+      ../../nix/lib
+    ];
+  };
+
+  nativeBuildInputs = [ makeWrapper ];
+
+  installPhase = ''
+    runHook preInstall
+    mkdir -p $out/bin $out/share/pdm-purifier
+    cp cli/pdm_purifier_cli.py $out/share/pdm-purifier/
+    cp -r nix/lib $out/share/pdm-purifier/nix-lib
+    makeWrapper ${python3.interpreter} $out/bin/pdm-purifier \
+      --add-flags "-I $out/share/pdm-purifier/pdm_purifier_cli.py" \
+      --prefix PATH : ${
+        lib.makeBinPath [
+          git
+          nix-prefetch-git
+        ]
+      } \
+      --set PDM_PURIFIER_NIX_LIB $out/share/pdm-purifier/nix-lib \
+      --set PDM_PURIFIER_NIXPKGS ${path} \
+      --set PDM_PURIFIER_PDM ${pdm}
+    runHook postInstall
+  '';
+
+  passthru.devShell = mkShell {
+    packages = [
+      pdm
+      finalAttrs.finalPackage
+    ];
+  };
+
+  meta = {
+    description = "Lock, run and publish PDM projects that Nix builds";
+    license = lib.licenses.mit;
+    mainProgram = "pdm-purifier";
+  };
+})

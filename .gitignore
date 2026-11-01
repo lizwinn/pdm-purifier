@@ -1,0 +1,7 @@
+/result
+.venv/
+.pdm-python
+.pdm-build/
+.pdm-purifier/
+__pycache__/
+dist/

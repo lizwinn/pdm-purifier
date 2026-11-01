@@ -1,0 +1,17 @@
+[project]
+name = "pdm-purifier"
+dynamic = ["version"]
+description = "The PDM plugin of pdm-purifier: record and serve PDM's downloads"
+license = "MIT"
+requires-python = ">=3.10"
+
+[project.entry-points.pdm]
+pdm-purifier = "pdm_purifier:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.dynamic]
+# The repository's version.txt, which the Nix build copies here.
+version = { file = "version.txt" }
