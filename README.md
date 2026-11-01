@@ -25,10 +25,36 @@ nix run github:nix-purifiers/pdm-purifier -- prefetch
 
 We recommend committing both lockfiles, `pdm.lock` and
 `pdm-purifier.lock.json`, to the project's repository. The builder and the
-commands look for them there. Then build the project with Nix. The
-`overlays.default` of the flake adds one attribute to the package set, the
-scope `pdm-purifier`, which holds the builder `buildPdmProject` beside the
-command and the plugin:
+commands look for them there.
+
+Then build the project from its directory with Nix. No Nix file is added to
+the project. The `overlays.default` of the flake adds one attribute to the
+package set, the scope `pdm-purifier`, which holds the builder
+`buildPdmProject` beside the command and the plugin:
+
+```zsh
+nix build --impure --expr '
+  let
+    purifier = builtins.getFlake "github:nix-purifiers/pdm-purifier";
+    pkgs = import purifier.inputs.nixpkgs {
+      system = builtins.currentSystem;
+      overlays = [ purifier.overlays.default ];
+    };
+  in
+  (pkgs.pdm-purifier.buildPdmProject { src = ./.; }).packages.app'
+```
+
+This uses the purifier's pinned nixpkgs, matching the lock command above.
+To build with ambient `<nixpkgs>` from your Nix search path instead,
+replace `import purifier.inputs.nixpkgs` with `import <nixpkgs>`.
+Both forms need no Nix files in your project. The build tool and language
+versions must match the lockfile; with ambient nixpkgs, lock with the
+purifier from that package set or pass a compatible toolchain to the builder.
+
+The result is the sdist and wheel of the project `app`, as `pdm build` makes
+them. A project whose authors want a flake can have one that packages it.
+The flake calls the builder directly, and it can live in the project's
+repository or in another one:
 
 ```nix
 {
@@ -55,14 +81,6 @@ command and the plugin:
       checks.${system}.tests = project.tests;
     };
 }
-```
-
-A package in an overlay takes the scope by name:
-
-```nix
-# package.nix
-{ pdm-purifier }:
-(pdm-purifier.buildPdmProject { src = ./.; }).packages.app
 ```
 
 `buildPdmProject` is a package for `callPackage` in the scope. It takes the
@@ -213,55 +231,44 @@ needs a C compiler on PATH, as it does for `pdm install`.
 ## Examples
 
 To build [PDM](https://github.com/pdm-project/pdm) itself with Nix, clone
-it, bring its pdm.lock up to date, and lock and prefetch the downloads:
+it, bring its pdm.lock up to date, and lock the downloads:
 
 ```zsh
 git clone https://github.com/pdm-project/pdm
 cd pdm
 nix shell github:nix-purifiers/pdm-purifier -c pdm lock -G :all
 nix run github:nix-purifiers/pdm-purifier -- lock
-nix run github:nix-purifiers/pdm-purifier -- prefetch
 ```
 
-Commit `pdm.lock` and `pdm-purifier.lock.json` to your fork. Then add a
-`flake.nix` next to `pyproject.toml`, which builds PDM from the fork.
-
-```nix
-{
-  inputs.pdm-purifier.url = "github:nix-purifiers/pdm-purifier";
-  inputs.nixpkgs.follows = "pdm-purifier/nixpkgs";
-
-  outputs = { nixpkgs, pdm-purifier, ... }:
-    let
-      system = "x86_64-linux";
-      pkgs = import nixpkgs {
-        inherit system;
-        overlays = [ pdm-purifier.overlays.default ];
-      };
-      project = pkgs.pdm-purifier.buildPdmProject {
-        src = ./.;
-        # PDM takes its version from git, and the flake's source has no
-        # .git directory.
-        env.PDM_BUILD_SCM_VERSION = "2.27.0";
-      };
-    in
-    {
-      packages.${system} = {
-        # The `pdm` command, installed with its dependencies.
-        default = project.programs.pdm;
-        # The sdist and wheel that `pdm build` makes.
-        dist = project.packages.pdm;
-      };
-    };
-}
-```
-
-`nix run` then starts PDM, and `nix build .#dist` builds its sdist and
-wheel:
+Then build it from the directory of the clone:
 
 ```zsh
-nix run . -- --version
-nix build .#dist
+nix build --impure --expr '
+  let
+    purifier = builtins.getFlake "github:nix-purifiers/pdm-purifier";
+    pkgs = import purifier.inputs.nixpkgs {
+      system = builtins.currentSystem;
+      overlays = [ purifier.overlays.default ];
+    };
+  in
+  (pkgs.pdm-purifier.buildPdmProject { src = ./.; }).packages.pdm'
+```
+
+The result holds the sdist and the wheel of PDM. To get the `pdm` command
+that the build installs, take `programs.pdm` from the same expression and
+start it from the `result` link:
+
+```zsh
+nix build --impure --expr '
+  let
+    purifier = builtins.getFlake "github:nix-purifiers/pdm-purifier";
+    pkgs = import purifier.inputs.nixpkgs {
+      system = builtins.currentSystem;
+      overlays = [ purifier.overlays.default ];
+    };
+  in
+  (pkgs.pdm-purifier.buildPdmProject { src = ./.; }).programs.pdm'
+result/bin/pdm --version
 ```
 
 ## Credits
