@@ -14,7 +14,7 @@ trap 'rm -rf "$work"' EXIT
 export PDM_CHECK_UPDATE=false
 export PDM_VENV_BACKEND=venv
 
-for fixture in simple sources vcs; do
+for fixture in simple sources vcs update; do
   echo "== $fixture"
   cp -r "$repo/tests/fixtures/$fixture" "$work/$fixture"
   (cd "$work/$fixture" && pdm-purifier lock)

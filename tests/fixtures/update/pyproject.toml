@@ -1,0 +1,9 @@
+[project]
+name = "update"
+version = "0.1.0"
+description = "A pdm-purifier fixture: pdm.lock pins six 1.15.0, older than six>=1.15 allows, for `pdm-purifier update`"
+requires-python = ">=3.11"
+dependencies = ["six>=1.15"]
+
+[tool.pdm]
+distribution = false

@@ -2,7 +2,11 @@
 """The `pdm-purifier` command.
 
     pdm-purifier [--lockfile PATH] lock
-                                      write pdm-purifier.lock.json
+                                      write pdm-purifier.lock.json for
+                                      pdm.lock as it is
+    pdm-purifier [--lockfile PATH] update [PACKAGE...]
+                                      update pdm.lock (all packages, or
+                                      the named ones), then relock
     pdm-purifier [--lockfile PATH] prefetch
                                       fetch the locked files into the Nix
                                       store, and install every locked group
@@ -145,7 +149,24 @@ def nix_build(root: Path, lockfile: Path, out_link: Path, **args: str) -> Path:
     return Path(result.stdout.strip().splitlines()[-1])
 
 
+def online_pdm(root: Path, *args: str) -> int:
+    """Run PDM against the network, with the plugin's serving turned off."""
+    env = {k: v for k, v in os.environ.items() if not k.startswith("PDM_PURIFIER_")}
+    env["PDM_PURIFIER_MODE"] = "off"
+    return subprocess.run([pdm_executable(), *args], cwd=root, env=env).returncode
+
+
 def lock(root: Path, lockfile: Path) -> None:
+    """Write pdm-purifier.lock.json for pdm.lock as it is. Where pdm.lock is
+    missing, `pdm lock` writes it; where it no longer matches
+    pyproject.toml, `pdm lock --update-reuse` brings it up to date and keeps
+    every pinned version it can."""
+    if not (root / "pdm.lock").exists():
+        if online_pdm(root, "lock") != 0:
+            raise Error("`pdm lock` failed")
+    elif online_pdm(root, "lock", "--check") != 0:
+        if online_pdm(root, "lock", "--update-reuse") != 0:
+            raise Error("`pdm lock --update-reuse` failed")
     with tempfile.TemporaryDirectory(prefix="pdm-purifier-lock-") as work:
         env = dict(os.environ)
         env.update(
@@ -160,6 +181,15 @@ def lock(root: Path, lockfile: Path) -> None:
         result = subprocess.run([pdm_executable(), "purifier", "lock"], cwd=root, env=env)
     if result.returncode != 0:
         raise Error("the lock run failed")
+
+
+def update(root: Path, lockfile: Path, packages: list[str]) -> None:
+    """Update pdm.lock with `pdm update`, for every package or the named
+    ones, without installing anything, and then relock
+    pdm-purifier.lock.json against it."""
+    if online_pdm(root, "update", "--no-sync", *packages) != 0:
+        raise Error("`pdm update` failed")
+    lock(root, lockfile)
 
 
 def project_python_version(root: Path) -> str | None:
@@ -255,7 +285,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="pdm-purifier", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--lockfile", type=Path, help=f"the pdm-purifier lockfile (default: ${LOCKFILE_ENV}, else {LOCKFILE} next to pdm.lock)")
     verbs = parser.add_subparsers(dest="verb", required=True)
-    verbs.add_parser("lock", help="write pdm-purifier.lock.json")
+    verbs.add_parser("lock", help="write pdm-purifier.lock.json, keeping pdm.lock's resolution")
+    update_parser = verbs.add_parser("update", help="update pdm.lock with `pdm update`, then relock")
+    update_parser.add_argument("packages", nargs="*", help="the packages to update (default: all)")
     verbs.add_parser("prefetch", help="fetch the locked files, and install every locked group offline")
     publish_parser = verbs.add_parser("publish", help="upload what the Nix build made")
     publish_parser.add_argument("--package", action="append", default=[], help="a local distribution to publish (repeatable)")
@@ -266,6 +298,8 @@ def main(argv: list[str] | None = None) -> int:
         lockfile = lockfile_path(root, options.lockfile)
         if options.verb == "lock":
             lock(root, lockfile)
+        elif options.verb == "update":
+            update(root, lockfile, options.packages)
         elif options.verb == "prefetch":
             prefetch(root, lockfile)
         elif options.verb == "publish":

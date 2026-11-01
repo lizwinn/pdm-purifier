@@ -1,0 +1,11 @@
+{
+  "buildRequirements": [],
+  "checkouts": {},
+  "contentHash": "debbc41e332d010d1d92993d1f8e63438028787f43852bbe1864089c987214f3",
+  "inputsHash": "99f25a086fd7dabba89ef6b46a17be3f3dfd93815276d371dc7545dcbfe3991b",
+  "urls": {
+    "six-1.15.0-py2.py3-none-any.whl": "https://files.pythonhosted.org/packages/ee/ff/48bde5c0f013094d729fe4b0316ba2a24774b3ff1c52d924a8a4cb04078a/six-1.15.0-py2.py3-none-any.whl",
+    "six-1.15.0.tar.gz": "https://files.pythonhosted.org/packages/6b/34/415834bfdafca3c5f451532e8a8d9ba89a21c9743a0c59fbd0205c7f9426/six-1.15.0.tar.gz"
+  },
+  "version": 2
+}

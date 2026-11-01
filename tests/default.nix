@@ -242,6 +242,21 @@ in
         touch $out
       '';
 
+  # `update` re-resolves through the network, so its check is the CI job of
+  # the same name (tests/update.sh). What can run in the sandbox is that the
+  # fixture it starts from is a locked project whose six is older than
+  # pyproject.toml allows: pdm.lock pins six 1.15.0 and the lockfile passes
+  # the stale check.
+  conformance-update =
+    let
+      project = build { src = fixture "update"; };
+    in
+    runCommand "conformance-update" { } ''
+      [ "${project.environment.name}" = "update-environment" ]
+      grep -q 'version = "1.15.0"' ${./fixtures/update/pdm.lock}
+      touch $out
+    '';
+
   # The simple fixture kept external: its `src` holds the project and
   # pdm.lock, and the build reads pdm-purifier.lock.json from outside it.
   conformance-external =
