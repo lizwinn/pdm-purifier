@@ -9,8 +9,7 @@
 #   (the CI job conformance-offline);
 # - adding a dependency that is not locked fails with pdm-purifier's
 #   message, which names the way to add it;
-# - a project changed since the prefetch runs PDM the usual way, with a
-#   warning;
+# - no purifier lock warns and delegates; an existing stale lock stops;
 # - with the lockfile kept outside the project, named by
 #   PDM_PURIFIER_LOCKFILE, prefetch and the development loop work the same;
 # - `pdm-purifier publish` uploads exactly the sdist and wheel Nix built, to
@@ -46,6 +45,14 @@ cp -r "$repo/tests/fixtures/sources" "$work/project"
 cd "$work/project"
 export PDM_CACHE_DIR="$work/pdm-cache"
 
+echo "== no purifier lock warns and keeps ordinary PDM commands usable"
+mv pdm-purifier.lock.json "$work/unlocked-backup.json"
+PDM_USE_VENV=false pdm info --where >"$work/unlocked.out" 2>"$work/unlocked.log"
+grep -q "warning:.*impurely" "$work/unlocked.log"
+[ "$(cat "$work/unlocked.out")" = "$PWD" ]
+test ! -e pdm-purifier.lock.json
+mv "$work/unlocked-backup.json" pdm-purifier.lock.json
+
 echo "== prefetch, then pdm sync, run and build with no network"
 pdm-purifier prefetch
 rm -rf .venv "$PDM_CACHE_DIR"
@@ -75,12 +82,14 @@ for file in sources-0.1.0.tar.gz sources-0.1.0-py3-none-any.whl; do
   cmp "$built/$file" "$work/uploads/$file"
 done
 
-echo "== a project changed since the prefetch runs PDM the usual way"
+echo "== an existing stale lock stops rather than switching to impure resolution"
 echo "# changed" >>pyproject.toml
-# `pdm show` of a package the project does not have queries the index,
-# which goes online; the network is cut, so only the warning matters.
-offline pdm show certifi 2>"$work/stale.log" || true
-grep -q "changed since \`pdm-purifier prefetch\`" "$work/stale.log"
+if offline pdm show certifi 2>"$work/stale.log"; then
+  echo "a stale project unexpectedly resolved dependencies" >&2
+  exit 1
+fi
+grep -q "changed since prefetch" "$work/stale.log"
+grep -q "pdm-purifier lock" "$work/stale.log"
 cp "$repo/tests/fixtures/sources/pyproject.toml" .
 
 echo "== a lockfile kept outside the project"
