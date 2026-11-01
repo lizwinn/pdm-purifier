@@ -73,13 +73,13 @@ in
     touch $out
   '';
 
-  # A Mercurial and a Subversion dependency, which the plugin copies from
-  # their locked checkouts in place of a clone, built with their locked
-  # build requirements.
+  # A Mercurial, a Subversion and a Bazaar dependency, which the plugin
+  # copies from their locked checkouts in place of a clone, built with their
+  # locked build requirements.
   vcs-runs = runCommand "vcs-runs" { } ''
     output=$(${lib.getExe vcs.programs.vcs})
     echo "$output"
-    [ "$output" = "yoyo-migrations ${vcsVersion "yoyo-migrations"} (yoyo), docutils ${vcsVersion "docutils"} (docutils)" ]
+    [ "$output" = "yoyo-migrations ${vcsVersion "yoyo-migrations"} (yoyo), docutils ${vcsVersion "docutils"} (docutils), python-dateutil ${vcsVersion "python-dateutil"} (dateutil)" ]
     touch $out
   '';
 

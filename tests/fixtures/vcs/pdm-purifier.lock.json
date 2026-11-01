@@ -81,6 +81,26 @@
       "version": "84.2.1"
     },
     {
+      "file": "six-1.17.0-py2.py3-none-any.whl",
+      "hash": "sha256-RyHzke2QVB/drKtaz5R6oNPcfSey4ejtor6JcFhsMnQ=",
+      "mirrors": [],
+      "name": "six",
+      "path": "six-1.17.0-py2.py3-none-any.whl",
+      "requiresPython": "!=3.0.*,!=3.1.*,!=3.2.*,>=2.7",
+      "url": "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl",
+      "version": "1.17.0"
+    },
+    {
+      "file": "six-1.17.0.tar.gz",
+      "hash": "sha256-/3AzXUaOfrbsZblbmdOig2VGBj9jrMUXHeNn6DSTKoE=",
+      "mirrors": [],
+      "name": "six",
+      "path": "six-1.17.0.tar.gz",
+      "requiresPython": "!=3.0.*,!=3.1.*,!=3.2.*,>=2.7",
+      "url": "https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68a0e064b6af791aa332cf192da575fd474ed7d6f16a2/six-1.17.0.tar.gz",
+      "version": "1.17.0"
+    },
+    {
       "file": "sqlparse-0.6.0-py3-none-any.whl",
       "hash": "sha256-uGHAKIzi+lYgmppkEtLgZqxmSzhzuJwmydhBXo4ymW8=",
       "mirrors": [],
@@ -143,6 +163,15 @@
   ],
   "checkouts": [
     {
+      "bzr": {
+        "rev": "135",
+        "url": "http://bazaar.launchpad.net/~dateutil/dateutil/trunk"
+      },
+      "hash": "sha256-aakXTF5zXrbLCUsACnI5sIBDiXO8ztzOKJSvxC2lI+o=",
+      "name": "python-dateutil",
+      "path": "bzr/python-dateutil-135"
+    },
+    {
       "hash": "sha256-sSSMcFf/yYz5iHGnHnA1dupMmf8KNy+hPvRgciGaDgk=",
       "hg": {
         "rev": "6d255163e92b6d75ee3cf963a7e01d41a569ca64",
@@ -164,7 +193,7 @@
     }
   ],
   "findLinks": [],
-  "inputsHash": "8d21dfacc44a5f96f432e3881fb0fd9bf09e40ab1d6a58978a39ee83aa311a70",
+  "inputsHash": "ef483bdc85617a01b1707f5fc7e80c62ed6d70142b4402f73e3d029ab5fd654d",
   "outputs": [
     {
       "name": "vcs",

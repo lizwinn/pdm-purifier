@@ -5,7 +5,7 @@
 groups = ["default"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:c43448dfcce974a66bea05acaef99edd2e3ab478e9fc3ba5fd61dbf0cb424d00"
+content_hash = "sha256:7194e1d3efe455de167fc77feb7f40f01fd315165a95b84bbfe061cc19d7fd45"
 
 [[metadata.targets]]
 requires_python = ">=3.11"
@@ -32,6 +32,29 @@ dependencies = [
 files = [
     {file = "importlib_metadata-10.1.0-py3-none-any.whl", hash = "sha256:cf45ce66a929c64e994185a809c04840d0501db17e663810d993d0f4829265c7"},
     {file = "importlib_metadata-10.1.0.tar.gz", hash = "sha256:82b04047fa09792c1a8cfeddfe08bec79e4b13c29c8469b0d3949860f61017e8"},
+]
+
+[[package]]
+name = "python-dateutil"
+version = "2.2"
+bzr = "http://bazaar.launchpad.net/~dateutil/dateutil/trunk"
+ref = "135"
+revision = "135"
+summary = "Extensions to the standard Python datetime module"
+groups = ["default"]
+dependencies = [
+    "six",
+]
+
+[[package]]
+name = "six"
+version = "1.17.0"
+requires_python = "!=3.0.*,!=3.1.*,!=3.2.*,>=2.7"
+summary = "Python 2 and 3 compatibility utilities"
+groups = ["default"]
+files = [
+    {file = "six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274"},
+    {file = "six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81"},
 ]
 
 [[package]]
