@@ -143,8 +143,11 @@ let
       {
         nativeBuildInputs = [ git ];
         checkout = plainGitCheckout entry;
-        inherit (entry.git) rev commitObject;
-        gitlinks = lib.concatMapStrings (link: "${link.rev} ${link.path}\n") (entry.gitlinks or [ ]);
+        inherit (entry.git) rev;
+        commitObject = entry.git.commitObject.object;
+        gitlinks = lib.concatMapStrings (
+          link: "${link.rev} ${link.path}\n"
+        ) entry.git.commitObject.gitlinks;
         passAsFile = [ "gitlinks" ];
       }
       ''

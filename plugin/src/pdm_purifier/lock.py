@@ -268,9 +268,8 @@ class Locker:
                 "rev": rev,
                 "submodules": False,
                 "leaveDotGit": True,
-                "commitObject": base64.b64encode(commit).decode(),
+                "commitObject": {"object": base64.b64encode(commit).decode(), "gitlinks": gitlinks},
             },
-            "gitlinks": gitlinks,
             "hash": self.prefetch(url, rev),
         }
 
