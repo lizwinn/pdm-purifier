@@ -41,10 +41,12 @@ project's `flake.nix`:
       };
     in
     {
-      # The script `app` of the project, installed with its dependencies.
-      packages.${system}.default = project.programs.app;
-      # The sdist and wheel of the project, as `pdm build` makes them.
-      packages.${system}.dist = project.packages.app;
+      packages.${system} = {
+        # The script `app` of the project, installed with its dependencies.
+        default = project.programs.app;
+        # The sdist and wheel of the project, as `pdm build` makes them.
+        dist = project.packages.app;
+      };
       # The project's tests, run in the sandbox.
       checks.${system}.tests = project.tests;
     };
@@ -72,7 +74,10 @@ builder does. It returns:
 It also takes `projectDir` (the project inside `src`, when `src` also holds
 local packages outside it), `python`, `nativeBuildInputs` and
 `buildInputs` (for a C extension's tools and libraries), `testCommand`,
-and `lockFile`. A company mirror or credentials go into
+and `lockFile`. The argument `env` sets environment variables for the
+builds. A project that takes its version from git needs it, because the
+source of a flake has no `.git` directory, and sets
+`PDM_BUILD_SCM_VERSION`. A company mirror or credentials go into
 `fetchers.fetchurl`, which works the same way in every purifier.
 
 `lib.pdm-purifier.readLock { src, lockFile }` reads both lockfiles into the
@@ -126,9 +131,6 @@ installs every locked group, the development groups among them, into the
 project's virtual environment. Afterwards, `pdm sync`, `pdm run`, `pdm
 build` and the editor work with the network cut off.
 
-The tests in `tests/interactive.sh` run these commands in a network
-namespace with no interfaces.
-
 ## Editor
 
 `prefetch` installs the project into `.venv`, with the development groups.
@@ -179,29 +181,59 @@ A dependency with a C extension needs a C compiler on PATH, as it does for
 
 ## Examples
 
-[PDM](https://github.com/pdm-project/pdm) 2.27.0, at commit `09c95b78`, is
-an example of a real project that CI locks and builds. The CI job
-`real-world` (`tests/real-world.sh`) locks it and builds its virtual
-environment and its package in the Nix sandbox, and the built `pdm` runs.
-The job does not run PDM's own test suite, which runs against PyPI.
+To build [PDM](https://github.com/pdm-project/pdm) itself with Nix, clone
+it, bring its pdm.lock up to date, and lock and prefetch the downloads:
 
-Building PDM shows what a larger project asks of the host:
+```zsh
+git clone https://github.com/pdm-project/pdm
+cd pdm
+nix shell github:nix-purifiers/pdm-purifier -c pdm lock -G :all
+nix run github:nix-purifiers/pdm-purifier -- lock
+nix run github:nix-purifiers/pdm-purifier -- prefetch
+```
 
-- A package whose sdist builds with a Rust toolchain, such as
-  cryptography, cannot be locked from its sdist, because the toolchain
-  downloads outside PDM. The lock run skips a package's sdist build when
-  wheels for the lock run's Python exist for Linux on x86_64 and on
-  aarch64.
-- A C extension that builds during the lock run, such as cffi, needs its
-  libraries on the host. The job provides libffi and pkg-config.
-- When pdm.lock names a file that an index has removed, `pdm-purifier lock`
-  stops with a message that says so. The job refreshes pdm.lock with
-  `pdm lock` first.
+Commit `pdm-purifier.lock.json` in a fork, or keep it outside the
+project with `--lockfile`. Then add a `flake.nix` next to `pyproject.toml`:
 
-The fixtures under `tests/fixtures/` are smaller examples of the other
-sources: a registry wheel with an sdist-only dependency, a mix of URL, git,
-local and submodule sources, and a Mercurial, Subversion and Bazaar
-dependency.
+```nix
+{
+  inputs.pdm-purifier.url = "github:nix-purifiers/pdm-purifier";
+  inputs.nixpkgs.follows = "pdm-purifier/nixpkgs";
+
+  outputs = { nixpkgs, pdm-purifier, ... }:
+    let
+      system = "x86_64-linux";
+      pkgs = nixpkgs.legacyPackages.${system};
+      project = pdm-purifier.lib.pdm-purifier.buildPdmProject {
+        inherit pkgs;
+        src = ./.;
+        # PDM takes its version from git, and the flake's source has no
+        # .git directory.
+        env.PDM_BUILD_SCM_VERSION = "2.27.0";
+      };
+    in
+    {
+      packages.${system} = {
+        # The `pdm` command, installed with its dependencies.
+        default = project.programs.pdm;
+        # The sdist and wheel that `pdm build` makes.
+        dist = project.packages.pdm;
+      };
+    };
+}
+```
+
+`nix run` then starts PDM, and `nix build .#dist` builds its sdist and
+wheel:
+
+```zsh
+nix run . -- --version
+nix build .#dist
+```
+
+For a project with a C extension, such as one that depends on a package
+with no wheel for your system, `buildPdmProject` takes `nativeBuildInputs`
+and `buildInputs` for the compiler's tools and libraries.
 
 ## Credits
 

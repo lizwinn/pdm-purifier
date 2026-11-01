@@ -67,6 +67,10 @@
   # extension links against.
   nativeBuildInputs ? [ ],
   buildInputs ? [ ],
+  # Environment variables for every PDM run in the build, such as
+  # `PDM_BUILD_SCM_VERSION`, which a project that takes its version from git
+  # needs because `src` has no .git directory.
+  env ? { },
   # PDM with the pdm-purifier plugin. By default it is built from `pkgs`.
   pdm ? null,
 }:
@@ -263,7 +267,7 @@ let
 
   environment = stdenv.mkDerivation {
     name = "${projectName}-environment";
-    inherit buildInputs;
+    inherit buildInputs env;
     inherit src;
     nativeBuildInputs = buildTools;
     dontConfigure = true;
@@ -290,7 +294,7 @@ let
     let
       dist = stdenv.mkDerivation {
         name = "${output.name}-dist";
-        inherit buildInputs;
+        inherit buildInputs env;
         inherit src;
         nativeBuildInputs = buildTools;
         dontConfigure = true;
@@ -349,7 +353,7 @@ let
 
   tests = stdenv.mkDerivation {
     name = "${projectName}-tests";
-    inherit buildInputs;
+    inherit buildInputs env;
     inherit src;
     nativeBuildInputs = buildTools;
     dontConfigure = true;
