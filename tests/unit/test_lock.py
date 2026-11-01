@@ -5,16 +5,15 @@ import base64
 import hashlib
 import tempfile
 import unittest
-import zipfile
 from pathlib import Path
 
 from pdm_purifier.lock import (
+    content_hash,
     inputs_hash,
     is_sdist,
     is_universal_wheel,
     name_and_version,
     sri,
-    wheel_scripts,
     write_pkg_info,
 )
 
@@ -49,25 +48,15 @@ class Hashes(unittest.TestCase):
             (root / "pyproject.toml").write_text("project\n")
             self.assertEqual(inputs_hash(root), hashlib.sha256(b"lock\nproject\n").hexdigest())
 
+    def test_content_hash_leaves_itself_out(self) -> None:
+        # The compact, key-sorted JSON that Nix's builtins.toJSON makes.
+        data = {"version": 2, "b": ["é", 1], "a": {"y": None, "x": True}}
+        expected = hashlib.sha256('{"a":{"x":true,"y":null},"b":["é",1],"version":2}'.encode()).hexdigest()
+        self.assertEqual(content_hash(data), expected)
+        self.assertEqual(content_hash(data | {"contentHash": "0"}), expected)
+
 
 class Builds(unittest.TestCase):
-    def test_wheel_scripts(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            wheel = Path(directory) / "a-1.0-py3-none-any.whl"
-            with zipfile.ZipFile(wheel, "w") as zf:
-                zf.writestr(
-                    "a-1.0.dist-info/entry_points.txt",
-                    "[console_scripts]\nZed = a:z\nalpha = a:main\n\n[gui_scripts]\nwindow = a:gui\n",
-                )
-            self.assertEqual(wheel_scripts(wheel), {"console": ["Zed", "alpha"], "gui": ["window"]})
-
-    def test_wheel_without_scripts(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            wheel = Path(directory) / "a-1.0-py3-none-any.whl"
-            with zipfile.ZipFile(wheel, "w") as zf:
-                zf.writestr("a/__init__.py", "")
-            self.assertEqual(wheel_scripts(wheel), {"console": [], "gui": []})
-
     def test_write_pkg_info_keeps_an_existing_one(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory)

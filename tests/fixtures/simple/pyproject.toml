@@ -13,6 +13,10 @@ dependencies = [
 [project.scripts]
 simple = "simple:main"
 
+# The tests, which the builder's `tests` runs with pytest.
+[dependency-groups]
+test = ["pytest==8.4.2"]
+
 [build-system]
 requires = ["pdm-backend"]
 build-backend = "pdm.backend"

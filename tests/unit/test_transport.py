@@ -3,12 +3,15 @@
 
 import hashlib
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import httpx
 
+from pdm_purifier import transport
 from pdm_purifier.transport import (
     RecordingTransport,
     ServingTransport,
@@ -113,6 +116,51 @@ class Recording(unittest.TestCase):
                 }
             ],
         )
+
+
+class Activation(unittest.TestCase):
+    """A project that `pdm-purifier prefetch` prepared is served from its
+    manifest while pdm.lock and pyproject.toml keep the prefetched hash."""
+
+    def setUp(self) -> None:
+        self.dir = tempfile.TemporaryDirectory()
+        self.root = Path(self.dir.name)
+        (self.root / "pdm.lock").write_text("lock\n")
+        (self.root / "pyproject.toml").write_text("project\n")
+        state = self.root / ".pdm-purifier"
+        state.mkdir()
+        manifest = {"git": [{"url": "https://example.org/a.git", "store": "/nix/store/a"}]}
+        (state / "manifest").write_text(json.dumps(manifest))
+        (state / "inputs").write_text(transport.inputs_hash(self.root) + "\n")
+        transport._manifest_cache = None
+        self.addCleanup(setattr, transport, "_manifest_cache", None)
+        self.addCleanup(self.dir.cleanup)
+
+    def activate(self, env: dict[str, str]) -> dict[str, str]:
+        with mock.patch.dict(os.environ, env, clear=True):
+            transport.activate(self.root)
+            return dict(os.environ)
+
+    def test_prefetched_project_is_served(self) -> None:
+        env = self.activate({})
+        self.assertEqual(env["PDM_PURIFIER_MODE"], "serve")
+        self.assertEqual(env["GIT_CONFIG_KEY_1"], "url./nix/store/a.insteadOf")
+        self.assertEqual(env["GIT_CONFIG_VALUE_1"], "https://example.org/a.git")
+
+    def test_changed_project_runs_online(self) -> None:
+        (self.root / "pyproject.toml").write_text("changed\n")
+        self.assertNotIn("PDM_PURIFIER_MODE", self.activate({}))
+
+    def test_external_lockfile_is_served_from_beside_it(self) -> None:
+        outside = Path(self.dir.name) / "outside"
+        outside.mkdir()
+        (self.root / ".pdm-purifier").rename(outside / ".pdm-purifier")
+        self.assertNotIn("PDM_PURIFIER_MODE", self.activate({}))
+        env = self.activate({"PDM_PURIFIER_LOCKFILE": str(outside / "pdm-purifier.lock.json")})
+        self.assertEqual(env["PDM_PURIFIER_MODE"], "serve")
+
+    def test_mode_off_runs_online(self) -> None:
+        self.assertEqual(self.activate({"PDM_PURIFIER_MODE": "off"})["PDM_PURIFIER_MODE"], "off")
 
 
 if __name__ == "__main__":

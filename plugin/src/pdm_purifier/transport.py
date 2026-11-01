@@ -16,7 +16,11 @@ isolated builds alike, whatever indexes the project names.
   Nix store, and an index page lists only the locked files of its project.
   The manifest named by ``PDM_PURIFIER_MANIFEST`` holds both.
 
-Without ``PDM_PURIFIER_MODE`` the plugin changes nothing.
+- ``off``: the plugin changes nothing.
+
+Without ``PDM_PURIFIER_MODE``, the plugin serves a project that
+``pdm-purifier prefetch`` prepared, and changes nothing for any other
+(``activate``).
 """
 
 from __future__ import annotations
@@ -36,6 +40,7 @@ import httpx
 MODE_ENV = "PDM_PURIFIER_MODE"
 RECORD_ENV = "PDM_PURIFIER_RECORD"
 MANIFEST_ENV = "PDM_PURIFIER_MANIFEST"
+LOCKFILE_ENV = "PDM_PURIFIER_LOCKFILE"
 
 DISTRIBUTION_SUFFIXES = (
     ".whl",
@@ -124,9 +129,9 @@ class ServingTransport(httpx.BaseTransport):
             if entries is not None:
                 return self._index_page(request, segments[-1], entries)
         print(
-            f"pdm-purifier: {url} is not in pdm-purifier.lock.json, and this PDM is offline. "
-            "Change dependencies with plain `pdm` (such as `pdm add`), "
-            "then run `pdm-purifier lock`.",
+            f"pdm-purifier: {url} is not in pdm-purifier.lock.json, and PDM is serving only the locked files. "
+            "To change dependencies, run the command with PDM_PURIFIER_MODE=off (such as "
+            "`PDM_PURIFIER_MODE=off pdm add <package>`), then run `pdm-purifier lock` and `pdm-purifier prefetch`.",
             file=sys.stderr,
         )
         return httpx.Response(404, request=request)
@@ -167,6 +172,61 @@ class ServingTransport(httpx.BaseTransport):
         )
 
 
+PREFETCHED = ".pdm-purifier/manifest"
+PREFETCHED_INPUTS = ".pdm-purifier/inputs"
+
+
+def inputs_hash(root: Path) -> str:
+    """SHA-256 over pdm.lock and pyproject.toml, in that order: the
+    inputsHash that `pdm-purifier lock` records."""
+    digest = hashlib.sha256()
+    digest.update((root / "pdm.lock").read_bytes())
+    digest.update((root / "pyproject.toml").read_bytes())
+    return digest.hexdigest()
+
+
+def activate(root: Path) -> None:
+    """Choose serve mode for a project that `pdm-purifier prefetch` prepared.
+
+    `pdm-purifier prefetch` keeps the manifest in .pdm-purifier/manifest,
+    and the inputsHash it was made for in .pdm-purifier/inputs, beside the
+    pdm-purifier lockfile: next to pdm.lock, or for an external build next
+    to the lockfile that PDM_PURIFIER_LOCKFILE names. When
+    PDM_PURIFIER_MODE is not set, and the project's pdm.lock and
+    pyproject.toml still have that hash, PDM serves every download from the
+    locked files. PDM_PURIFIER_MODE=off turns that off, for a command that
+    changes the dependencies. A project changed since the prefetch runs PDM
+    the usual way, with a warning.
+    """
+    if os.environ.get(MODE_ENV):
+        return
+    lockfile = os.environ.get(LOCKFILE_ENV)
+    base = Path(lockfile).parent if lockfile else root
+    manifest = base / PREFETCHED
+    inputs = base / PREFETCHED_INPUTS
+    if not manifest.exists() or not inputs.exists():
+        return
+    if not (root / "pdm.lock").exists() or inputs.read_text().strip() != inputs_hash(root):
+        print(
+            "pdm-purifier: pdm.lock or pyproject.toml changed since `pdm-purifier prefetch`, so PDM runs online. "
+            "Run `pdm-purifier lock` and `pdm-purifier prefetch`.",
+            file=sys.stderr,
+        )
+        return
+    os.environ[MODE_ENV] = "serve"
+    os.environ[MANIFEST_ENV] = str(manifest.resolve())
+    # Git sends a clone of each locked repository to its checkout in the
+    # store, which has the locked commit.
+    rewrites = [("protocol.file.allow", "always")] + [
+        (f"url.{g['store']}.insteadOf", g["url"]) for g in _manifest().get("git", [])
+    ]
+    start = int(os.environ.get("GIT_CONFIG_COUNT", "0"))
+    for i, (key, value) in enumerate(rewrites, start):
+        os.environ[f"GIT_CONFIG_KEY_{i}"] = key
+        os.environ[f"GIT_CONFIG_VALUE_{i}"] = value
+    os.environ["GIT_CONFIG_COUNT"] = str(start + len(rewrites))
+
+
 _manifest_cache: dict | None = None
 
 
@@ -184,6 +244,8 @@ def install(session: httpx.Client) -> None:
     """Put the transport that PDM_PURIFIER_MODE selects under ``session``."""
     mode = os.environ.get(MODE_ENV)
     if not mode:
+        return
+    if mode == "off":
         return
     if mode == "record":
         record = os.environ.get(RECORD_ENV)

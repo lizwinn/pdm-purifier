@@ -50,7 +50,10 @@ def _patch_sessions() -> None:
         return
 
     def _build_session(self: Any, sources: Any = None, mounts: Any = None) -> Any:
+        from pathlib import Path
+
         session = build_session(self, sources, mounts)
+        transport.activate(Path(self.project.root))
         transport.install(session)
         return session
 
@@ -122,7 +125,32 @@ def _patch_version_control() -> None:
     VersionControl.get_revision = patched_get_revision  # type: ignore[method-assign]
 
 
+def _patch_finder() -> None:
+    """During a lock run, offer only pdm.lock's versions of a project that
+    pdm.lock pins, so a build requirement resolves to the version pdm.lock
+    already has (pdm_purifier.lock.pinned_versions). Outside a lock run the
+    set is empty, and the finder is unchanged."""
+    from unearth.finder import PackageFinder
+
+    from pdm_purifier import lock
+
+    find = PackageFinder._find_packages
+    if getattr(find, "_pdm_purifier", False):
+        return
+
+    def _find_packages(self: Any, package_name: str, allow_yanked: bool = False) -> Any:
+        packages = find(self, package_name, allow_yanked)
+        pinned = lock.pinned_versions.get(transport.normalize_name(package_name))
+        if pinned is None:
+            return packages
+        return [package for package in packages if package.version in pinned]
+
+    _find_packages._pdm_purifier = True  # type: ignore[attr-defined]
+    PackageFinder._find_packages = _find_packages  # type: ignore[method-assign]
+
+
 def main(core: Any) -> None:
     _patch_sessions()
     _patch_version_control()
+    _patch_finder()
     core.register_command(PurifierCommand, "purifier")

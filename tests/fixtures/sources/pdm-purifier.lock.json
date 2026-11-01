@@ -1,11 +1,9 @@
 {
-  "artifacts": [
+  "buildRequirements": [
     {
       "file": "flit_core-3.12.0-py3-none-any.whl",
       "hash": "sha256-56AwQGnqiVFy48e7cDKS6ZLF0VVd0SM6t7ViG1tp5iw=",
-      "mirrors": [],
       "name": "flit-core",
-      "path": "flit_core-3.12.0-py3-none-any.whl",
       "requiresPython": ">=3.6",
       "url": "https://files.pythonhosted.org/packages/f2/65/b6ba90634c984a4fcc02c7e3afe523fef500c4980fec67cc27536ee50acf/flit_core-3.12.0-py3-none-any.whl",
       "version": "3.12.0"
@@ -13,29 +11,15 @@
     {
       "file": "flit_core-3.12.0.tar.gz",
       "hash": "sha256-GPYxANb5Q4XG7VenIHNEPhpxpKy0M5SRYV0PFtb/AbI=",
-      "mirrors": [],
       "name": "flit-core",
-      "path": "flit_core-3.12.0.tar.gz",
       "requiresPython": ">=3.6",
       "url": "https://files.pythonhosted.org/packages/69/59/b6fc2188dfc7ea4f936cd12b49d707f66a1cb7a1d2c16172963534db741b/flit_core-3.12.0.tar.gz",
       "version": "3.12.0"
     },
     {
-      "file": "idna-3.10.tar.gz",
-      "hash": "sha256-EvZcm0cKvabcNc+OY8xXSxxSsR3yyGAwrwrAmwGxPqk=",
-      "mirrors": [],
-      "name": "idna",
-      "path": "idna-3.10.tar.gz",
-      "requiresPython": null,
-      "url": "https://files.pythonhosted.org/packages/f1/70/7703c29685631f5a7590aa73f1f1d3fa9a380e654b86af429e0934a32f7d/idna-3.10.tar.gz",
-      "version": "3.10"
-    },
-    {
       "file": "pdm_backend-2.5.0-py3-none-any.whl",
       "hash": "sha256-W4dGtWehah/VBs5m7ijonUY3RSb1IjiqG5bMLAgkXGM=",
-      "mirrors": [],
       "name": "pdm-backend",
-      "path": "pdm_backend-2.5.0-py3-none-any.whl",
       "requiresPython": ">=3.9",
       "url": "https://files.pythonhosted.org/packages/5e/a6/c743c589188f9e45e1a7c8f3e2e725f9b5df5decd72779fbfc1695b45866/pdm_backend-2.5.0-py3-none-any.whl",
       "version": "2.5.0"
@@ -43,9 +27,7 @@
     {
       "file": "pdm_backend-2.5.0.tar.gz",
       "hash": "sha256-eVO5lFY9MVF1XjNkudDP6BftDq7N8nyPd39BLSa82Yo=",
-      "mirrors": [],
       "name": "pdm-backend",
-      "path": "pdm_backend-2.5.0.tar.gz",
       "requiresPython": ">=3.9",
       "url": "https://files.pythonhosted.org/packages/fc/d5/a82f533ed51f91a2183faf67a1fcb3b759615ffeca95d05b3e7648bf84bf/pdm_backend-2.5.0.tar.gz",
       "version": "2.5.0"
@@ -53,9 +35,7 @@
     {
       "file": "setuptools-84.2.1-py3-none-any.whl",
       "hash": "sha256-yhQLRdUyWpR4+IDjUUhPYv7xXzNkYuRJygwDyHPVicI=",
-      "mirrors": [],
       "name": "setuptools",
-      "path": "setuptools-84.2.1-py3-none-any.whl",
       "requiresPython": ">=3.10",
       "url": "https://files.pythonhosted.org/packages/ef/55/6dc6d6bb953bdfc52519a0059592c52b6e3b8ad51cf8256dffceb55b0610/setuptools-84.2.1-py3-none-any.whl",
       "version": "84.2.1"
@@ -63,107 +43,43 @@
     {
       "file": "setuptools-84.2.1.tar.gz",
       "hash": "sha256-P/iztUkqCqZpYPRBk2Woa4TgEwcNQxPk1KaJT11k1rw=",
-      "mirrors": [],
       "name": "setuptools",
-      "path": "setuptools-84.2.1.tar.gz",
       "requiresPython": ">=3.10",
       "url": "https://files.pythonhosted.org/packages/70/b3/c19426f783614d625699a4b247faf628ea9ab1db228674491767b417f9e1/setuptools-84.2.1.tar.gz",
       "version": "84.2.1"
-    },
-    {
-      "file": "six-1.17.0-py2.py3-none-any.whl",
-      "hash": "sha256-RyHzke2QVB/drKtaz5R6oNPcfSey4ejtor6JcFhsMnQ=",
-      "mirrors": [],
-      "name": "six",
-      "path": "six-1.17.0-py2.py3-none-any.whl",
-      "requiresPython": null,
-      "url": "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl",
-      "version": "1.17.0"
     }
   ],
-  "checkouts": [
-    {
-      "git": {
-        "commitObject": {
-          "gitlinks": [],
-          "object": "dHJlZSA5ZDRmNDQ3Yzg1Njk2MmE5OGUyMmYxNDRiZDliMDMxNWFiNGQxOGY4CnBhcmVudCBiYmIyN2E1ZWZiODViOTJhMDQ4NmNmMzYxYTg2MzU3MTVhNTNmNmJhCnBhcmVudCAxYWMzMThiMjY0ZjQzYjUzMGIwNDY1OTNmMmE5NmNhNTM4ZDc2Y2ZiCmF1dGhvciBZYW5uIENvbGxldCA8Q3lhbjQ5NzNAdXNlcnMubm9yZXBseS5naXRodWIuY29tPiAxNzM1NTA1ODk5IC0wODAwCmNvbW1pdHRlciBHaXRIdWIgPG5vcmVwbHlAZ2l0aHViLmNvbT4gMTczNTUwNTg5OSAtMDgwMApncGdzaWcgLS0tLS1CRUdJTiBQR1AgU0lHTkFUVVJFLS0tLS0KIAogd3NGY0JBQUJDQUFRQlFKbmNiZnJDUkMxYVE3dXU1VWhsQUFBbWtVUUFHNU9wYk9QWXpNTlZ1L1hlMkVUcHUrRwogMkJrWkh0V3BvRU1rLytIcXkvc0ZWMEl2VEdobEhoK3JpUDBUeHdDSHVJbGxpMW0xcldKWSt2Mk92c1QxOW1GQgogL1NrVW1rcWM3bDFMcTlQbWFsVzlIeWdLbGsweVhLY1B3UkhJak13dEtPK3YwbzJSeUdoNWFaTXY3RjhnZlMrQgogMTZUUEhsb3lvWFUxcXFkWmZNSGRidHB6MnVsS1p5NnNFc2pBWlpMWXFiZld2L1NmYkd6MU9YNjlOMmhlZEUwWQogK0MwQXFmaEx4L1Y3NEhjV1pHOVc4WDMxM0FDZitCYnUyc3lLT0hjbi92MFhxV2t3WE1IRHVZSStmTzB4a3lGMwogVGgwaFpjNlhScFBacHZpS2dsZGpqQ2tCQjBoRUdsdmlrb1d1VjRacktWNlppOVJqVFhHTUpoSEI2VmhmSXlHRQogNU1rWjlwNU5tYXlocktDdkZ6WFpEMnlNREduT1FrZi83ekNJMWFiYnhtQlEwQlZSeUZkUW1WUmFPZmhyajZzSwogU2t3VDlYMkFqcDkydWtVZ1NEY0FUVEdjV2xDcHZCVXhiR1dqRmw0aklmN0RWY21MaEJZRVBPZmdON0twZXdTcwogUVdEZy9BbUg4SWQ0QzJwVVpQYUV2clFlZW9IZTZ2emw4ZVVXSGR6S0tEdHBkNERTeFdPRUpZeHdzV3Vmc1FOZQogV2Y5QnYyYUFsR09jYVBRUWY3Mk01T1k0Q2dpaTZ2a0JHVk4vaFFxTk55cVhxZ2Fad3BhdWU1U2I2MFJ1N0dpQgogSklFcGFGeHMyazlWQm91RzI4R29ycXZSU0l4Rm5hZmxaMjllWDN6RDFEQWlXTWZwdWU4M0JsaTVubnFEZmExSQoga2Y3b2tpMEM2eFZxUDBaYVREOWwKID05WW8vCiAtLS0tLUVORCBQR1AgU0lHTkFUVVJFLS0tLS0KIAoKTWVyZ2UgcHVsbCByZXF1ZXN0ICM5OTEgZnJvbSBDeWFuNDk3My9kZXYKCnYwLjguMw=="
-        },
-        "leaveDotGit": true,
-        "rev": "e626a72bc2321cd320e953a0ccf1584cad60f363",
-        "submodules": false,
-        "url": "https://github.com/Cyan4973/xxHash.git"
+  "checkouts": {
+    "https://github.com/Cyan4973/xxHash.git": {
+      "commitObject": {
+        "gitlinks": [],
+        "object": "dHJlZSA5ZDRmNDQ3Yzg1Njk2MmE5OGUyMmYxNDRiZDliMDMxNWFiNGQxOGY4CnBhcmVudCBiYmIyN2E1ZWZiODViOTJhMDQ4NmNmMzYxYTg2MzU3MTVhNTNmNmJhCnBhcmVudCAxYWMzMThiMjY0ZjQzYjUzMGIwNDY1OTNmMmE5NmNhNTM4ZDc2Y2ZiCmF1dGhvciBZYW5uIENvbGxldCA8Q3lhbjQ5NzNAdXNlcnMubm9yZXBseS5naXRodWIuY29tPiAxNzM1NTA1ODk5IC0wODAwCmNvbW1pdHRlciBHaXRIdWIgPG5vcmVwbHlAZ2l0aHViLmNvbT4gMTczNTUwNTg5OSAtMDgwMApncGdzaWcgLS0tLS1CRUdJTiBQR1AgU0lHTkFUVVJFLS0tLS0KIAogd3NGY0JBQUJDQUFRQlFKbmNiZnJDUkMxYVE3dXU1VWhsQUFBbWtVUUFHNU9wYk9QWXpNTlZ1L1hlMkVUcHUrRwogMkJrWkh0V3BvRU1rLytIcXkvc0ZWMEl2VEdobEhoK3JpUDBUeHdDSHVJbGxpMW0xcldKWSt2Mk92c1QxOW1GQgogL1NrVW1rcWM3bDFMcTlQbWFsVzlIeWdLbGsweVhLY1B3UkhJak13dEtPK3YwbzJSeUdoNWFaTXY3RjhnZlMrQgogMTZUUEhsb3lvWFUxcXFkWmZNSGRidHB6MnVsS1p5NnNFc2pBWlpMWXFiZld2L1NmYkd6MU9YNjlOMmhlZEUwWQogK0MwQXFmaEx4L1Y3NEhjV1pHOVc4WDMxM0FDZitCYnUyc3lLT0hjbi92MFhxV2t3WE1IRHVZSStmTzB4a3lGMwogVGgwaFpjNlhScFBacHZpS2dsZGpqQ2tCQjBoRUdsdmlrb1d1VjRacktWNlppOVJqVFhHTUpoSEI2VmhmSXlHRQogNU1rWjlwNU5tYXlocktDdkZ6WFpEMnlNREduT1FrZi83ekNJMWFiYnhtQlEwQlZSeUZkUW1WUmFPZmhyajZzSwogU2t3VDlYMkFqcDkydWtVZ1NEY0FUVEdjV2xDcHZCVXhiR1dqRmw0aklmN0RWY21MaEJZRVBPZmdON0twZXdTcwogUVdEZy9BbUg4SWQ0QzJwVVpQYUV2clFlZW9IZTZ2emw4ZVVXSGR6S0tEdHBkNERTeFdPRUpZeHdzV3Vmc1FOZQogV2Y5QnYyYUFsR09jYVBRUWY3Mk01T1k0Q2dpaTZ2a0JHVk4vaFFxTk55cVhxZ2Fad3BhdWU1U2I2MFJ1N0dpQgogSklFcGFGeHMyazlWQm91RzI4R29ycXZSU0l4Rm5hZmxaMjllWDN6RDFEQWlXTWZwdWU4M0JsaTVubnFEZmExSQoga2Y3b2tpMEM2eFZxUDBaYVREOWwKID05WW8vCiAtLS0tLUVORCBQR1AgU0lHTkFUVVJFLS0tLS0KIAoKTWVyZ2UgcHVsbCByZXF1ZXN0ICM5OTEgZnJvbSBDeWFuNDk3My9kZXYKCnYwLjguMw=="
       },
       "hash": "sha256-h6kohM+NxvQ89R9NEXZcYBG2wPOuB4mcyPfofKrx9wQ=",
-      "name": "xxhash-deps-xxhash",
-      "path": "git/xxhash-deps-xxhash-e626a72bc232"
+      "rev": "e626a72bc2321cd320e953a0ccf1584cad60f363"
     },
-    {
-      "git": {
-        "commitObject": {
-          "gitlinks": [],
-          "object": "dHJlZSAxZGJlYTQwYjE3NmM4OGZkNTZmZTgxNzU1YmQ3OGM2NTZhZGYzNDFiCnBhcmVudCA1YjkzMDYwZjVmMzRjNmVmZjhmZjExOGZiN2JmZGYyOTMzYzk0Njc5CmF1dGhvciBWbGFkaW1pciBLZWxlc2hldiA8aGFsc3RAeWEucnU+IDE0MDI5MTcyNzIgKzAyMDAKY29tbWl0dGVyIFZsYWRpbWlyIEtlbGVzaGV2IDxoYWxzdEB5YS5ydT4gMTQwMjkxNzI3MiArMDIwMAoKQnVtcCB2ZXJzaW9uIHRvIDAuNi4yCg=="
-        },
-        "leaveDotGit": true,
-        "rev": "944641a7357376a43151bd4a3ca44f9c07c4d1ae",
-        "submodules": false,
-        "url": "https://github.com/docopt/docopt.git"
+    "https://github.com/docopt/docopt.git": {
+      "commitObject": {
+        "gitlinks": [],
+        "object": "dHJlZSAxZGJlYTQwYjE3NmM4OGZkNTZmZTgxNzU1YmQ3OGM2NTZhZGYzNDFiCnBhcmVudCA1YjkzMDYwZjVmMzRjNmVmZjhmZjExOGZiN2JmZGYyOTMzYzk0Njc5CmF1dGhvciBWbGFkaW1pciBLZWxlc2hldiA8aGFsc3RAeWEucnU+IDE0MDI5MTcyNzIgKzAyMDAKY29tbWl0dGVyIFZsYWRpbWlyIEtlbGVzaGV2IDxoYWxzdEB5YS5ydT4gMTQwMjkxNzI3MiArMDIwMAoKQnVtcCB2ZXJzaW9uIHRvIDAuNi4yCg=="
       },
-      "hash": "sha256-oFlJtzu+2PWi/EJDBZDzUIF6Ky0VYGGj1tBartdLTSk=",
-      "name": "docopt",
-      "path": "git/docopt-944641a73573"
+      "hash": "sha256-oFlJtzu+2PWi/EJDBZDzUIF6Ky0VYGGj1tBartdLTSk="
     },
-    {
-      "git": {
-        "commitObject": {
-          "gitlinks": [
-            {
-              "path": "deps/xxhash",
-              "rev": "e626a72bc2321cd320e953a0ccf1584cad60f363"
-            }
-          ],
-          "object": "dHJlZSA3NGQxZGEzNWJiOTFiOGEwM2Q3MzdiMzgxMzUwZGU4OWViOTQ4ZTJlCnBhcmVudCBmMDBjMGY4MjA5NGEwNDQ4MjgyMmJiMDc4NzA4NTY0YTIxMzIwMWFiCmF1dGhvciBZdWUgRHUgPGlmZHV5dWVAZ21haWwuY29tPiAxNzkyMzg3NzUxICswODAwCmNvbW1pdHRlciBZdWUgRHUgPGlmZHV5dWVAZ21haWwuY29tPiAxNzkyMzg3NzUxICswODAwCgpSZWxlYXNlIHY0LjAuMgo="
-        },
-        "leaveDotGit": true,
-        "rev": "5803a455336a0eeb03e34f893d7526387e9555e5",
-        "submodules": false,
-        "url": "https://github.com/ifduyue/python-xxhash.git"
+    "https://github.com/ifduyue/python-xxhash.git": {
+      "commitObject": {
+        "gitlinks": [
+          {
+            "path": "deps/xxhash",
+            "rev": "e626a72bc2321cd320e953a0ccf1584cad60f363"
+          }
+        ],
+        "object": "dHJlZSA3NGQxZGEzNWJiOTFiOGEwM2Q3MzdiMzgxMzUwZGU4OWViOTQ4ZTJlCnBhcmVudCBmMDBjMGY4MjA5NGEwNDQ4MjgyMmJiMDc4NzA4NTY0YTIxMzIwMWFiCmF1dGhvciBZdWUgRHUgPGlmZHV5dWVAZ21haWwuY29tPiAxNzkyMzg3NzUxICswODAwCmNvbW1pdHRlciBZdWUgRHUgPGlmZHV5dWVAZ21haWwuY29tPiAxNzkyMzg3NzUxICswODAwCgpSZWxlYXNlIHY0LjAuMgo="
       },
-      "hash": "sha256-EZw/bnJloDFyqpg4YIahYM7LKuwRiImeAsAo+5+CoYo=",
-      "name": "xxhash",
-      "path": "git/xxhash-5803a455336a"
+      "hash": "sha256-EZw/bnJloDFyqpg4YIahYM7LKuwRiImeAsAo+5+CoYo="
     }
-  ],
-  "findLinks": [],
+  },
+  "contentHash": "c6954fde1104233fab5c2a20b98f0deb3461a36d3e06b9cbe14387e02b850708",
   "inputsHash": "339e284d6c620ea6aadc75536d11c1f5fac73a7bf83af4d3f4b36d009ab63b0d",
-  "outputs": [
-    {
-      "name": "localpkg",
-      "path": "vendor/localpkg",
-      "pure": true,
-      "scripts": {
-        "console": [
-          "localpkg"
-        ],
-        "gui": []
-      },
-      "sdist": "localpkg-0.2.0.tar.gz",
-      "version": "0.2.0",
-      "wheel": "localpkg-0.2.0-py3-none-any.whl"
-    },
-    {
-      "name": "sources",
-      "path": ".",
-      "pure": true,
-      "scripts": {
-        "console": [
-          "sources"
-        ],
-        "gui": []
-      },
-      "sdist": "sources-0.1.0.tar.gz",
-      "version": "0.1.0",
-      "wheel": "sources-0.1.0-py3-none-any.whl"
-    }
-  ],
-  "version": 1
+  "urls": {},
+  "version": 2
 }

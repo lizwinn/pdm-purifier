@@ -60,7 +60,7 @@
           {
             checks = import ../../../tests {
               inherit pkgs;
-              overlay = self.overlays.default;
+              inherit (self.lib.pdm-purifier) buildPdmProject readLock;
               inherit (self.packages.${system}) cli;
             };
             treefmt.programs.nixfmt.enable = true;

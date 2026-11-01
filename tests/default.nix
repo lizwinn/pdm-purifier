@@ -4,36 +4,50 @@
 # project with a committed pdm.lock and pdm-purifier.lock.json
 # (relock-fixtures.sh makes both). The checks build each fixture from its
 # lockfiles in the sandbox, with no network, and run what it built.
+#
+# The `conformance-*` checks are those of the purifier contract (CONTRACT.md
+# in github:nix-purifiers/purifier). `conformance-relock` needs the network,
+# so it is a CI job of that name (lock-run.sh) and has no check here.
 {
   pkgs,
-  overlay,
+  # lib.pdm-purifier.buildPdmProject and lib.pdm-purifier.readLock of this
+  # flake.
+  buildPdmProject,
+  readLock,
   cli,
 }:
 let
-  final = pkgs.extend overlay;
-  inherit (final) lib runCommand;
+  inherit (pkgs) lib runCommand;
+  inherit (builtins) hashString removeAttrs toJSON;
 
-  # A fixture directory as Nix copies it, without what PDM leaves behind.
-  fixture =
-    name:
+  # A fixture directory as Nix copies it, without what PDM leaves behind,
+  # and without the files in `drop`.
+  fixtureWithout =
+    drop: name:
     lib.fileset.toSource {
       root = ./fixtures + "/${name}";
       fileset = lib.fileset.difference (./fixtures + "/${name}") (
         lib.fileset.unions (
-          map (p: lib.fileset.maybeMissing (./fixtures + "/${name}/${p}")) [
-            ".venv"
-            ".pdm-python"
-            ".pdm-build"
-            ".pdm-purifier"
-            "dist"
-          ]
+          map (p: lib.fileset.maybeMissing (./fixtures + "/${name}/${p}")) (
+            [
+              ".venv"
+              ".pdm-python"
+              ".pdm-build"
+              ".pdm-purifier"
+              "dist"
+            ]
+            ++ drop
+          )
         )
       );
     };
+  fixture = fixtureWithout [ ];
 
-  simple = final.buildPdmProject { src = fixture "simple"; };
-  sources = final.buildPdmProject { src = fixture "sources"; };
-  vcs = final.buildPdmProject { src = fixture "vcs"; };
+  build = args: buildPdmProject ({ inherit pkgs; } // args);
+
+  simple = build { src = fixture "simple"; };
+  sources = build { src = fixture "sources"; };
+  vcs = build { src = fixture "vcs"; };
   # The version the vcs fixture's pdm.lock pins for a package.
   vcsVersion =
     name:
@@ -42,26 +56,55 @@ let
     ).version;
 
   # The simple fixture's pdm-purifier.lock.json, changed by `edit`, as a
-  # file of its own.
+  # file of its own. `editedLock` recomputes the contentHash, as a relock
+  # would; `tamperedLock` keeps the old one, as a hand edit would.
   simpleLock = builtins.fromJSON (builtins.readFile ./fixtures/simple/pdm-purifier.lock.json);
-  editedLock = name: edit: builtins.toFile "${name}.json" (builtins.toJSON (edit simpleLock));
+  rehash =
+    lock: lock // { contentHash = hashString "sha256" (toJSON (removeAttrs lock [ "contentHash" ])); };
+  editedLock = name: edit: builtins.toFile "${name}.json" (toJSON (rehash (edit simpleLock)));
+  tamperedLock = name: edit: builtins.toFile "${name}.json" (toJSON (edit simpleLock));
 
-  # Whether reading the simple fixture with `lockFile` fails when Nix
-  # evaluates it, as each broken lockfile must.
-  refusedAtEvaluation =
+  # The problem readLock finds when it reads the simple fixture with the
+  # lockfile at `lockFile`, or null when it finds none.
+  refusal =
     lockFile:
-    !(builtins.tryEval (
-      builtins.deepSeq
-        (final.buildPdmProject {
+    let
+      problems =
+        (readLock {
           src = fixture "simple";
           inherit lockFile;
-        }).packages
-        true
-    )).success;
+        }).problems;
+    in
+    if problems == [ ] then null else builtins.head problems;
 
-  # A build of the simple fixture that must fail, with the log of the
-  # failure in $out/testBuildFailure.log.
-  failedBuild = project: final.testers.testBuildFailure project.environment;
+  # A check that each lockfile is refused with a message naming the command
+  # that fixes it, and that the builder refuses it too.
+  refusedNamingTheFix =
+    name: lockFiles:
+    assert lib.all (
+      lockFile:
+      let
+        message = refusal lockFile;
+      in
+      lib.assertMsg (
+        message != null && lib.hasInfix "pdm-purifier lock" message
+      ) "${name}: ${toString lockFile} was not refused with a message naming `pdm-purifier lock`"
+      && lib.assertMsg (
+        !(builtins.tryEval (
+          builtins.deepSeq
+            (build {
+              src = fixture "simple";
+              inherit lockFile;
+            }).packages
+            true
+        )).success
+      ) "${name}: the builder accepted ${toString lockFile}"
+    ) lockFiles;
+    runCommand name { } "touch $out";
+
+  # A build that must fail, with the log of the failure in
+  # $out/testBuildFailure.log.
+  failedBuild = drv: pkgs.testers.testBuildFailure drv;
 in
 {
   inherit cli;
@@ -72,7 +115,7 @@ in
     runCommand "unit-tests"
       {
         nativeBuildInputs = [
-          (final.python3.withPackages (ps: [
+          (pkgs.python3.withPackages (ps: [
             ps.httpx
             ps.packaging
           ]))
@@ -84,48 +127,135 @@ in
         touch $out
       '';
 
-  # Lockfiles the Nix library refuses with a message: one that no longer
-  # matches pdm.lock and pyproject.toml, one of another format version, one
-  # that is not an object, and one that is missing.
-  refuses-broken-lockfiles =
-    assert refusedAtEvaluation (editedLock "stale" (lock: lock // { inputsHash = "0"; }));
-    assert refusedAtEvaluation (editedLock "version" (lock: lock // { version = 0; }));
-    assert refusedAtEvaluation (builtins.toFile "shape.json" "[]");
-    assert refusedAtEvaluation (./fixtures/simple + "/missing.json");
-    runCommand "refuses-broken-lockfiles" { } "touch $out";
+  # A lockfile that no longer matches pdm.lock and pyproject.toml.
+  conformance-stale = refusedNamingTheFix "conformance-stale" [
+    (editedLock "stale" (lock: lock // { inputsHash = "0"; }))
+  ];
 
-  # A lockfile without attrs' wheel: PDM asks for it, and the plugin refuses
-  # it with a message instead of reaching the network.
-  refuses-missing-entry =
+  # A lockfile whose URL of attrs' wheel, or whose hash of a build
+  # requirement, was edited by hand is refused at evaluation, by its
+  # contentHash. The hashes of the files pdm.lock lists are pdm.lock's own,
+  # which Nix fetches each file with, so an edited one fails that
+  # fixed-output fetch.
+  conformance-tampered = refusedNamingTheFix "conformance-tampered" [
+    (tamperedLock "tampered-url" (
+      lock:
+      lock
+      // {
+        urls = lib.mapAttrs (
+          file: url: if lib.hasPrefix "attrs-" file then "https://example.org/${file}" else url
+        ) lock.urls;
+      }
+    ))
+    (tamperedLock "tampered-hash" (
+      lock:
+      lock
+      // {
+        buildRequirements = map (
+          entry: entry // { hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="; }
+        ) lock.buildRequirements;
+      }
+    ))
+  ];
+
+  # A lockfile without the setuptools that building docopt's sdist
+  # installs: PDM asks for it, and the plugin refuses it with a message
+  # naming `pdm-purifier lock`, instead of reaching the network. A lockfile
+  # without the URL of attrs' wheel, which pdm.lock lists, one without one
+  # of its fields, and a missing lockfile are refused at evaluation.
+  conformance-missing =
     let
-      failure = failedBuild (
-        final.buildPdmProject {
-          src = fixture "simple";
-          lockFile = editedLock "missing-entry" (
-            lock:
-            lock
-            // {
-              artifacts = builtins.filter (entry: !(lib.hasPrefix "attrs-" entry.file)) lock.artifacts;
-            }
-          );
-        }
-      );
+      failure =
+        failedBuild
+          (build {
+            src = fixture "simple";
+            lockFile = editedLock "missing-entry" (
+              lock:
+              lock
+              // {
+                buildRequirements = builtins.filter (entry: entry.name != "setuptools") lock.buildRequirements;
+              }
+            );
+          }).environment;
+      refused = refusedNamingTheFix "conformance-missing-refusals" [
+        (editedLock "missing-url" (
+          lock: lock // { urls = lib.filterAttrs (file: _: !(lib.hasPrefix "attrs-" file)) lock.urls; }
+        ))
+        (editedLock "missing-field" (lock: removeAttrs lock [ "checkouts" ]))
+        (./fixtures/simple + "/missing.json")
+      ];
     in
-    runCommand "refuses-missing-entry" { } ''
+    runCommand "conformance-missing" { } ''
+      : ${refused}
       grep -q "is not in pdm-purifier.lock.json" ${failure}/testBuildFailure.log
+      grep -q "pdm-purifier lock" ${failure}/testBuildFailure.log
       touch $out
     '';
 
-  # A pdm.lock whose hash of attrs' wheel was edited: PDM refuses the wheel
-  # the plugin serves, because it does not have the hash pdm.lock names
-  # (negative/tampered-hash, from make-negative-fixtures.py).
-  refuses-tampered-hash =
+  # A lockfile that is not an object, and one of another format version. A
+  # file that is not JSON fails in Nix's own JSON parser, whose error the
+  # library gives the message as context; the command's unit tests check
+  # its own message for it.
+  conformance-malformed = refusedNamingTheFix "conformance-malformed" [
+    (builtins.toFile "shape.json" "[]")
+    (editedLock "version" (lock: lock // { version = 0; }))
+  ];
+
+  # Building the simple fixture's package a second time gives the same
+  # sdist and wheel, byte for byte.
+  conformance-rebuild =
     let
-      failure = failedBuild (final.buildPdmProject { src = ./negative/tampered-hash; });
+      first = simple.packages.simple;
+      second = first.overrideAttrs { REBUILD = "second"; };
     in
-    runCommand "refuses-tampered-hash" { } ''
-      grep -qi "hash" ${failure}/testBuildFailure.log
-      grep -q "attrs" ${failure}/testBuildFailure.log
+    runCommand "conformance-rebuild" { } ''
+      diff -r ${first} ${second}
+      touch $out
+    '';
+
+  # The everyday loop of a prefetched project, with no network: the
+  # project has the manifest that `pdm-purifier prefetch` keeps, and plain
+  # `pdm` (with the plugin, and no PDM_PURIFIER_MODE) installs every
+  # group, runs the project and its tests, and builds it.
+  conformance-offline =
+    runCommand "conformance-offline"
+      {
+        nativeBuildInputs = [
+          cli
+          pkgs.git
+          pkgs.python3
+        ];
+      }
+      ''
+        export HOME="$TMPDIR/home" PDM_CHECK_UPDATE=false PDM_VENV_BACKEND=venv
+        cp -r ${fixture "simple"} project
+        chmod -R u+w project
+        cd project
+        mkdir .pdm-purifier
+        ln -s ${simple.manifest} .pdm-purifier/manifest
+        sha256sum <(cat pdm.lock pyproject.toml) | cut -d' ' -f1 > .pdm-purifier/inputs
+        pdm sync --dev
+        [ "$(pdm run simple World)" = "Hello, World, from simple" ]
+        pdm run python -m pytest
+        pdm build
+        test -f dist/simple-0.1.0.tar.gz
+        touch $out
+      '';
+
+  # The simple fixture kept external: its `src` holds the project and
+  # pdm.lock, and the build reads pdm-purifier.lock.json from outside it.
+  conformance-external =
+    let
+      external = build {
+        src = fixtureWithout [ "pdm-purifier.lock.json" ] "simple";
+        lockFile = builtins.path {
+          path = ./fixtures/simple/pdm-purifier.lock.json;
+          name = "pdm-purifier.lock.json";
+        };
+      };
+    in
+    runCommand "conformance-external" { } ''
+      [ "$(${lib.getExe external.programs.simple} World)" = "Hello, World, from simple" ]
       touch $out
     '';
 
@@ -138,13 +268,22 @@ in
     touch $out
   '';
 
-  # `pdm build` makes the sdist and the wheel that the lock run recorded.
-  simple-package = runCommand "simple-package" { } ''
-    test -f ${simple.packages.simple.sdist}
-    test -f ${simple.packages.simple.wheel}
-    ${final.unzip}/bin/unzip -l ${simple.packages.simple.wheel} | grep -q 'simple/__init__.py'
-    touch $out
-  '';
+  # The project's tests, which the builder runs with its test group.
+  simple-tests = simple.tests;
+
+  # `pdm build` makes the sdist and the wheel that the lock run recorded,
+  # which are the release, and the fetches list every locked file the
+  # build fetched.
+  simple-package =
+    assert simple.release == simple.packages.simple;
+    assert lib.any (entry: lib.hasPrefix "attrs-" (entry.file or "")) simple.fetches;
+    assert lib.all (entry: entry ? hash) simple.fetches;
+    runCommand "simple-package" { } ''
+      test -f ${simple.packages.simple.sdist}
+      test -f ${simple.packages.simple.wheel}
+      ${pkgs.unzip}/bin/unzip -l ${simple.packages.simple.wheel} | grep -q 'simple/__init__.py'
+      touch $out
+    '';
 
   # A wheel by URL, an sdist by URL built with the locked flit_core, two git
   # dependencies cloned from their locked checkouts and built with the

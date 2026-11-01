@@ -1,23 +1,27 @@
 # SPDX-License-Identifier: MIT
 """`pdm purifier lock`: write pdm-purifier.lock.json beside pdm.lock.
 
-pdm.lock pins every package with the names and SHA-256 hashes of its files,
-but not their URLs, and it pins nothing that PDM installs to build a
-package. This command fills in both:
+pdm-purifier.lock.json holds only what pdm.lock cannot record. The Nix
+library reads everything else from pdm.lock and pyproject.toml:
 
-1. It asks PDM's own finder, with platform filtering off, for the URL of
-   every file in pdm.lock, so the lockfile covers every platform pdm.lock
-   covers.
-2. It runs every build that installing the project can need, with the
-   recording transport under PDM: the project itself (sdist, wheel and
-   editable wheel), each local and git dependency, and each registry or URL
-   dependency that has an sdist and no wheel for every platform. PDM
-   downloads each build's requirements through the transport, which writes
-   them down.
-3. It adds every file of each recorded build requirement's version, from
-   the index page, so a build on another platform finds its wheels too.
-4. It locks each git dependency, and each of its submodules, as a git
-   checkout with its .git directory, which is what PDM clones from.
+- `urls`: the URL of each file pdm.lock lists without one. pdm.lock names
+  each file and its SHA-256 hash, and has URLs only with the static_urls
+  strategy. The command asks PDM's own finder, with platform filtering off,
+  for each URL, so the lockfile covers every platform pdm.lock covers.
+- `buildRequirements`: the files that building a package installs, of
+  packages pdm.lock does not pin. The command runs every build that
+  installing the project can need, with the recording transport under PDM:
+  the project itself (sdist, wheel and editable wheel), each local and
+  version control dependency, and each registry or URL dependency that has
+  an sdist and no wheel for every platform. While it runs, a build
+  requirement that pdm.lock pins resolves to the pinned version
+  (`pinned_versions`), so its files are pdm.lock's and are not recorded
+  again. It then adds every file of each other recorded version, so a build
+  on another platform finds its wheels too.
+- `checkouts`: for each version control dependency, by repository URL, the
+  Nix hash of its checkout, and for git the raw commit object from which
+  Nix rebuilds the .git directory that PDM clones. A git submodule, which
+  pdm.lock does not name, has its revision too.
 
 The command runs with PDM_PURIFIER_MODE=record, which `pdm-purifier lock`
 sets together with an empty PDM cache.
@@ -47,9 +51,14 @@ from packaging.utils import (
 
 from pdm_purifier.transport import RECORD_ENV, normalize_name
 
+# The versions pdm.lock pins, by normalized project name, while a lock run
+# is running. The plugin's finder patch (plugin._patch_finder) offers a build
+# only these versions of a pinned project.
+pinned_versions: dict[str, set[str]] = {}
+
 # The lock format this command writes. nix/lib/lock-version.nix holds the
 # same number, and the Nix library refuses any other.
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
 LOCKFILE = "pdm-purifier.lock.json"
 VCS_KEYS = ("git", "hg", "svn", "bzr")
 
@@ -106,24 +115,6 @@ def write_pkg_info(source: Path, name: str, version: str) -> None:
         pkg_info.write_text(f"Metadata-Version: 2.1\nName: {name}\nVersion: {version}\n")
 
 
-def wheel_scripts(wheel: Path) -> dict[str, list[str]]:
-    """The console and GUI scripts a wheel installs, from its entry_points.txt."""
-    import configparser
-
-    scripts: dict[str, list[str]] = {"console": [], "gui": []}
-    with zipfile.ZipFile(wheel) as zf:
-        names = [n for n in zf.namelist() if n.endswith(".dist-info/entry_points.txt")]
-        if not names:
-            return scripts
-        parser = configparser.ConfigParser(delimiters=("=",))
-        parser.optionxform = str  # type: ignore[assignment,method-assign]
-        parser.read_string(zf.read(names[0]).decode())
-    for section, key in (("console_scripts", "console"), ("gui_scripts", "gui")):
-        if parser.has_section(section):
-            scripts[key] = sorted(parser.options(section))
-    return scripts
-
-
 class Locker:
     def __init__(self, project: Any) -> None:
         self.project = project
@@ -134,11 +125,22 @@ class Locker:
         if not record or os.environ.get("PDM_PURIFIER_MODE") != "record":
             raise LockError("run `pdm-purifier lock`, which records the downloads of the builds")
         self.record = Path(record)
-        # Entries by store path in the output tree, so every file appears once.
-        self.artifacts: dict[str, dict] = {}
-        # Version control checkouts by repository URL.
+        # The URL of each pdm.lock file that pdm.lock lists without one.
+        self.urls: dict[str, str] = {}
+        # Every file pdm.lock lists, by name, and every URL it has.
+        self.locked_files: dict[str, list[str]] = {}
+        self.locked_urls: set[str] = set()
+        # The build requirements pdm.lock does not pin, by file name.
+        self.build_requirements: dict[str, dict] = {}
+        # Version control checkouts by repository URL, and the revision of
+        # each git checkout.
         self.checkouts: dict[str, dict] = {}
+        self.git_revs: dict[str, str] = {}
         self._pages: dict[str, dict[str, Any]] = {}
+        pinned_versions.clear()
+        for package in self.packages():
+            if "version" in package and not any(key in package for key in (*VCS_KEYS, "path", "url")):
+                pinned_versions.setdefault(normalize_name(package["name"]), set()).add(package["version"])
 
     # -- index lookups -----------------------------------------------------
 
@@ -157,7 +159,7 @@ class Locker:
             self._pages[key] = found
         return self._pages[key]
 
-    def add_artifact(self, name: str, filename: str, url: str, sha256: str, requires_python: str | None) -> None:
+    def add_build_requirement(self, name: str, filename: str, url: str, sha256: str, requires_python: str | None) -> None:
         parsed = name_and_version(filename)
         if parsed is None:
             raise LockError(f"{name}: {filename} is not a wheel or an sdist")
@@ -165,16 +167,14 @@ class Locker:
             "name": normalize_name(name),
             "version": parsed[1],
             "file": filename,
-            "path": filename,
             "url": url,
-            "mirrors": [],
             "hash": sri(sha256),
             "requiresPython": requires_python,
         }
-        previous = self.artifacts.get(filename)
+        previous = self.build_requirements.get(filename)
         if previous is not None and previous["hash"] != entry["hash"]:
             raise LockError(f"two different files are named {filename}")
-        self.artifacts[filename] = entry
+        self.build_requirements[filename] = entry
 
     def link_sha256(self, link: Any) -> str:
         hashes = link.hashes or {}
@@ -194,36 +194,38 @@ class Locker:
         except KeyError:
             return []
 
-    def lock_registry_package(self, package: dict) -> None:
+    def lock_registry_package(self, package: dict) -> list[str]:
+        """Find the URL of each file of ``package`` that pdm.lock lists
+        without one, and return the names of all its files."""
         name = package["name"]
+        filenames = []
         for item in package.get("files", []):
-            algo, _, digest = item["hash"].partition(":")
+            algo, _, _ = item["hash"].partition(":")
             if algo != "sha256":
                 raise LockError(f"{name}: pdm.lock has a {algo} hash; pdm-purifier needs sha256")
             if "url" in item:
-                url = item["url"]
-                filename = url.rsplit("/", 1)[-1].split("#")[0]
-                requires_python = None
-                link = self.links(name).get(filename)
-                if link is not None:
-                    requires_python = link.requires_python
+                url = item["url"].split("#")[0]
+                filename = url.rsplit("/", 1)[-1]
             else:
                 filename = item["file"]
                 link = self.links(name).get(filename)
                 if link is None:
                     raise LockError(f"{name}: none of the project's indexes lists {filename}")
                 url = link.url_without_fragment
-                requires_python = link.requires_python
-            self.add_artifact(name, filename, url, digest, requires_python)
+                self.urls[filename] = url
+            filenames.append(filename)
+            self.locked_urls.add(url)
+        self.locked_files[normalize_name(name)] = self.locked_files.get(normalize_name(name), []) + filenames
+        return filenames
 
-    def lock_url_package(self, package: dict) -> None:
+    def lock_url_package(self, package: dict) -> list[str]:
         url = package["url"].split("#")[0]
-        filename = url.rsplit("/", 1)[-1]
         for item in package.get("files", []):
-            algo, _, digest = item["hash"].partition(":")
+            algo, _, _ = item["hash"].partition(":")
             if algo != "sha256":
                 raise LockError(f"{package['name']}: pdm.lock has a {algo} hash; pdm-purifier needs sha256")
-            self.add_artifact(package["name"], filename, url, digest, None)
+        self.locked_urls.add(url)
+        return [url.rsplit("/", 1)[-1]]
 
     # -- git ---------------------------------------------------------------
 
@@ -242,16 +244,18 @@ class Locker:
         ).stdout
         return json.loads(out)["hash"]
 
-    def add_git(self, name: str, url: str, rev: str, repository: Path) -> None:
+    def add_git(self, url: str, rev: str, repository: Path, *, submodule: bool) -> None:
         """Lock the git checkout of ``url`` at ``rev``. ``repository`` is a
         clone that has the commit, from which the entry takes the raw commit
         object and the submodule commits (gitlinks) of its tree. The Nix
         build rebuilds the .git directory from them and the plain checkout,
-        because a hash over a .git directory is not reproducible."""
-        if url in self.checkouts:
-            if self.checkouts[url]["git"]["rev"] != rev:
+        because a hash over a .git directory is not reproducible. A
+        submodule's entry has its revision, which pdm.lock does not."""
+        if url in self.git_revs:
+            if self.git_revs[url] != rev:
                 raise LockError(f"{url} is locked at two revisions; pdm-purifier keeps one per URL")
             return
+        self.git_revs[url] = rev
         commit = subprocess.run(
             ["git", "cat-file", "commit", rev], cwd=repository, check=True, capture_output=True
         ).stdout
@@ -261,17 +265,11 @@ class Locker:
                 meta, path = line.split("\t", 1)
                 gitlinks.append({"path": path, "rev": meta.split()[2]})
         self.checkouts[url] = {
-            "name": name,
-            "path": f"git/{normalize_name(name)}-{rev[:12]}",
-            "git": {
-                "url": url,
-                "rev": rev,
-                "submodules": False,
-                "leaveDotGit": True,
-                "commitObject": {"object": base64.b64encode(commit).decode(), "gitlinks": gitlinks},
-            },
+            "commitObject": {"object": base64.b64encode(commit).decode(), "gitlinks": gitlinks},
             "hash": self.prefetch(url, rev),
         }
+        if submodule:
+            self.checkouts[url]["rev"] = rev
 
     # -- Mercurial, Subversion and Bazaar ----------------------------------
 
@@ -327,14 +325,7 @@ class Locker:
             fields.update(subrepos=True)
         sri_hash, store = self.prefetch_other(vcs, fields)
         subdirectory = package.get("subdirectory")
-        self.checkouts[url] = {
-            "name": name,
-            "version": package["version"],
-            "subdirectory": subdirectory,
-            "path": f"{vcs}/{normalize_name(name)}-{rev[:12]}",
-            vcs: fields,
-            "hash": sri_hash,
-        }
+        self.checkouts[url] = {"hash": sri_hash}
         checkout = self.work / vcs / f"{normalize_name(name)}-{rev[:12]}"
         if not checkout.exists():
             shutil.copytree(store, checkout, symlinks=True)
@@ -357,7 +348,7 @@ class Locker:
             self.git_command("reset", "--hard", "--quiet", rev, cwd=checkout)
             if (checkout / ".gitmodules").exists():
                 self.git_command("submodule", "update", "--init", "--recursive", "--quiet", cwd=checkout)
-        self.add_git(name, url, rev, checkout)
+        self.add_git(url, rev, checkout, submodule=False)
         if (checkout / ".gitmodules").exists():
             listing = self.git_command(
                 "submodule",
@@ -369,35 +360,25 @@ class Locker:
             )
             for line in listing.splitlines():
                 sub_url, sub_rev, sub_path = line.split(" ", 2)
-                sub_name = f"{name}-{sub_path.replace('/', '-')}"
-                self.add_git(sub_name, sub_url, sub_rev, checkout / sub_path)
+                self.add_git(sub_url, sub_rev, checkout / sub_path, submodule=True)
         subdirectory = package.get("subdirectory")
         return checkout / subdirectory if subdirectory else checkout
 
     # -- builds ------------------------------------------------------------
 
-    def build(self, source: Path, *, sdist: bool = False, editable: bool = False) -> dict:
-        """Build ``source`` and return what it produced: its name, version,
-        file names and scripts, the outputs Nix exposes for a local
-        distribution."""
+    def build(self, source: Path, *, sdist: bool = False, editable: bool = False) -> None:
+        """Build ``source``, so that the recording transport writes down
+        what its builds download."""
         from pdm.builders import EditableBuilder, SdistBuilder, WheelBuilder
 
         out = self.work / "dist" / hashlib.sha256(str(source).encode()).hexdigest()[:16]
         out.mkdir(parents=True, exist_ok=True)
         self.project.core.ui.echo(f"Building {source} to record its build requirements", err=True)
-        sdist_name = Path(SdistBuilder(source, self.environment).build(str(out))).name if sdist else None
-        wheel = Path(WheelBuilder(source, self.environment).build(str(out)))
+        if sdist:
+            SdistBuilder(source, self.environment).build(str(out))
+        WheelBuilder(source, self.environment).build(str(out))
         if editable:
             EditableBuilder(source, self.environment).build(str(self.work / "editable"))
-        name, version, _, tags = parse_wheel_filename(wheel.name)
-        return {
-            "name": normalize_name(str(name)),
-            "version": str(version),
-            "sdist": sdist_name,
-            "wheel": wheel.name,
-            "pure": any(tag.abi == "none" and tag.platform == "any" for tag in tags),
-            "scripts": wheel_scripts(wheel),
-        }
 
     def unpack_sdist(self, name: str, url: str) -> Path:
         response = self.environment.session.get(url)
@@ -428,24 +409,25 @@ class Locker:
         return [json.loads(line) for line in self.record.read_text().splitlines() if line.strip()]
 
     def add_build_requirements(self) -> None:
-        """Lock every file of each version the builds downloaded."""
-        known = {entry["url"] for entry in self.artifacts.values()}
+        """Lock every file of each version the builds downloaded that
+        pdm.lock does not have."""
+        locked = {f for files in self.locked_files.values() for f in files}
         versions: set[tuple[str, str]] = set()
         for item in self.recorded():
-            if item["url"] in known:
-                continue
             filename = item["url"].rsplit("/", 1)[-1]
+            if item["url"] in self.locked_urls or filename in locked:
+                continue
             parsed = name_and_version(filename)
             if parsed is None:
                 raise LockError(f"a build downloaded {item['url']}, which is not a distribution file")
             versions.add(parsed)
             link = self.links(parsed[0]).get(filename)
             requires_python = link.requires_python if link is not None else None
-            self.add_artifact(parsed[0], filename, item["url"], item["sha256"], requires_python)
+            self.add_build_requirement(parsed[0], filename, item["url"], item["sha256"], requires_python)
         for name, version in sorted(versions):
             for filename, link in self.links(name).items():
-                if name_and_version(filename) == (name, version) and filename not in self.artifacts:
-                    self.add_artifact(name, filename, link.url_without_fragment, self.link_sha256(link), link.requires_python)
+                if name_and_version(filename) == (name, version) and filename not in self.build_requirements:
+                    self.add_build_requirement(name, filename, link.url_without_fragment, self.link_sha256(link), link.requires_python)
 
     # -- the whole lock ----------------------------------------------------
 
@@ -469,45 +451,53 @@ class Locker:
                 if path.is_dir():
                     builds.append((path, {"editable": bool(package.get("editable")), "local": True}))
             elif "url" in package:
-                self.lock_url_package(package)
-                filenames = [package["url"].split("#")[0].rsplit("/", 1)[-1]]
+                filenames = self.lock_url_package(package)
                 if self.needs_build(filenames):
                     sdist_builds.append((package["name"], package["url"].split("#")[0]))
             else:
-                self.lock_registry_package(package)
-                filenames = [e["file"] for e in self.artifacts.values() if e["name"] == normalize_name(package["name"])]
+                filenames = self.lock_registry_package(package)
                 if self.needs_build(filenames):
-                    sdist = next(e for e in self.artifacts.values() if e["name"] == normalize_name(package["name"]) and is_sdist(e["file"]))
-                    sdist_builds.append((package["name"], sdist["url"]))
+                    sdist = next(f for f in filenames if is_sdist(f))
+                    sdist_builds.append((package["name"], self.url_of(package, sdist)))
 
-        # The local distributions, whose builds are the project's outputs:
-        # the project itself, and each path dependency inside the project.
-        outputs: list[dict] = []
+        # The local distributions: the project itself, and each path
+        # dependency.
         if project.is_distribution:
-            output = self.build(self.root, sdist=True, editable=True)
-            output["path"] = "."
-            outputs.append(output)
+            self.build(self.root, sdist=True, editable=True)
         for source, options in builds:
-            output = self.build(source, sdist=options.get("local", False), editable=options.get("editable", False))
-            if options.get("local"):
-                output["path"] = os.path.relpath(source, self.root)
-                outputs.append(output)
+            self.build(source, sdist=options.get("local", False), editable=options.get("editable", False))
         for name, url in sdist_builds:
             self.build(self.unpack_sdist(name, url))
         self.add_build_requirements()
 
-        find_links = [s.url for s in project.sources if s.type == "find_links" and s.url]
         return {
             "version": FORMAT_VERSION,
             "inputsHash": inputs_hash(self.root),
-            "findLinks": sorted(find_links),
-            "outputs": sorted(outputs, key=lambda o: o["name"]),
-            "artifacts": [self.artifacts[k] for k in sorted(self.artifacts)],
-            "checkouts": [self.checkouts[k] for k in sorted(self.checkouts)],
+            "urls": dict(sorted(self.urls.items())),
+            "buildRequirements": [self.build_requirements[k] for k in sorted(self.build_requirements)],
+            "checkouts": dict(sorted(self.checkouts.items())),
         }
 
+    def url_of(self, package: dict, filename: str) -> str:
+        for item in package.get("files", []):
+            if item.get("file") == filename and "url" in item:
+                return item["url"].split("#")[0]
+            if "url" in item and item["url"].split("#")[0].endswith("/" + filename):
+                return item["url"].split("#")[0]
+        return self.urls[filename]
+
     def close(self) -> None:
+        pinned_versions.clear()
         shutil.rmtree(self.work, ignore_errors=True)
+
+
+def content_hash(data: dict) -> str:
+    """SHA-256 over the lockfile without its contentHash, as compact JSON
+    with sorted keys: the text Nix's builtins.toJSON makes of the same data,
+    so the Nix library computes the same hash to refuse an edited lockfile."""
+    rest = {key: value for key, value in data.items() if key != "contentHash"}
+    canonical = json.dumps(rest, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(canonical.encode()).hexdigest()
 
 
 def lock(project: Any) -> Path:
@@ -516,6 +506,9 @@ def lock(project: Any) -> Path:
         data = locker.run()
     finally:
         locker.close()
-    path = Path(project.root) / LOCKFILE
+    data["contentHash"] = content_hash(data)
+    # `pdm-purifier lock` names the lockfile, which may be outside the
+    # project, in PDM_PURIFIER_LOCKFILE.
+    path = Path(os.environ.get("PDM_PURIFIER_LOCKFILE") or Path(project.root) / LOCKFILE)
     path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
     return path

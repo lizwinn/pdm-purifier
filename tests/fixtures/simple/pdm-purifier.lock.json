@@ -1,41 +1,9 @@
 {
-  "artifacts": [
-    {
-      "file": "attrs-26.1.0-py3-none-any.whl",
-      "hash": "sha256-xkeqShLfutkzPKTnH+Yt3Db05jstJgo3qLg9LwQ6wwk=",
-      "mirrors": [],
-      "name": "attrs",
-      "path": "attrs-26.1.0-py3-none-any.whl",
-      "requiresPython": ">=3.9",
-      "url": "https://files.pythonhosted.org/packages/64/b4/17d4b0b2a2dc85a6df63d1157e028ed19f90d4cd97c36717afef2bc2f395/attrs-26.1.0-py3-none-any.whl",
-      "version": "26.1.0"
-    },
-    {
-      "file": "attrs-26.1.0.tar.gz",
-      "hash": "sha256-0DzricsyKo/XBtT7kZQHN7ZkKqNpmP4TCpvJbJhe/zI=",
-      "mirrors": [],
-      "name": "attrs",
-      "path": "attrs-26.1.0.tar.gz",
-      "requiresPython": ">=3.9",
-      "url": "https://files.pythonhosted.org/packages/9a/8e/82a0fe20a541c03148528be8cac2408564a6c9a0cc7e9171802bc1d26985/attrs-26.1.0.tar.gz",
-      "version": "26.1.0"
-    },
-    {
-      "file": "docopt-0.6.2.tar.gz",
-      "hash": "sha256-SbOoJSgL1ms6qDWF71nEqMgvLIpSLb51SovI0IyFxJE=",
-      "mirrors": [],
-      "name": "docopt",
-      "path": "docopt-0.6.2.tar.gz",
-      "requiresPython": null,
-      "url": "https://files.pythonhosted.org/packages/a2/55/8f8cab2afd404cf578136ef2cc5dfb50baa1761b68c9da1fb1e4eed343c9/docopt-0.6.2.tar.gz",
-      "version": "0.6.2"
-    },
+  "buildRequirements": [
     {
       "file": "pdm_backend-2.5.0-py3-none-any.whl",
       "hash": "sha256-W4dGtWehah/VBs5m7ijonUY3RSb1IjiqG5bMLAgkXGM=",
-      "mirrors": [],
       "name": "pdm-backend",
-      "path": "pdm_backend-2.5.0-py3-none-any.whl",
       "requiresPython": ">=3.9",
       "url": "https://files.pythonhosted.org/packages/5e/a6/c743c589188f9e45e1a7c8f3e2e725f9b5df5decd72779fbfc1695b45866/pdm_backend-2.5.0-py3-none-any.whl",
       "version": "2.5.0"
@@ -43,9 +11,7 @@
     {
       "file": "pdm_backend-2.5.0.tar.gz",
       "hash": "sha256-eVO5lFY9MVF1XjNkudDP6BftDq7N8nyPd39BLSa82Yo=",
-      "mirrors": [],
       "name": "pdm-backend",
-      "path": "pdm_backend-2.5.0.tar.gz",
       "requiresPython": ">=3.9",
       "url": "https://files.pythonhosted.org/packages/fc/d5/a82f533ed51f91a2183faf67a1fcb3b759615ffeca95d05b3e7648bf84bf/pdm_backend-2.5.0.tar.gz",
       "version": "2.5.0"
@@ -53,9 +19,7 @@
     {
       "file": "setuptools-84.2.1-py3-none-any.whl",
       "hash": "sha256-yhQLRdUyWpR4+IDjUUhPYv7xXzNkYuRJygwDyHPVicI=",
-      "mirrors": [],
       "name": "setuptools",
-      "path": "setuptools-84.2.1-py3-none-any.whl",
       "requiresPython": ">=3.10",
       "url": "https://files.pythonhosted.org/packages/ef/55/6dc6d6bb953bdfc52519a0059592c52b6e3b8ad51cf8256dffceb55b0610/setuptools-84.2.1-py3-none-any.whl",
       "version": "84.2.1"
@@ -63,32 +27,31 @@
     {
       "file": "setuptools-84.2.1.tar.gz",
       "hash": "sha256-P/iztUkqCqZpYPRBk2Woa4TgEwcNQxPk1KaJT11k1rw=",
-      "mirrors": [],
       "name": "setuptools",
-      "path": "setuptools-84.2.1.tar.gz",
       "requiresPython": ">=3.10",
       "url": "https://files.pythonhosted.org/packages/70/b3/c19426f783614d625699a4b247faf628ea9ab1db228674491767b417f9e1/setuptools-84.2.1.tar.gz",
       "version": "84.2.1"
     }
   ],
-  "checkouts": [],
-  "findLinks": [],
-  "inputsHash": "cf56bb80ac4443697c7a3c714a8ed60298da1a1df55c6c14aaca0e08404e21ba",
-  "outputs": [
-    {
-      "name": "simple",
-      "path": ".",
-      "pure": true,
-      "scripts": {
-        "console": [
-          "simple"
-        ],
-        "gui": []
-      },
-      "sdist": "simple-0.1.0.tar.gz",
-      "version": "0.1.0",
-      "wheel": "simple-0.1.0-py3-none-any.whl"
-    }
-  ],
-  "version": 1
+  "checkouts": {},
+  "contentHash": "8e6c9539979b32de9c4a3a8744c27517e5057f3179a25ab73b80eab464425819",
+  "inputsHash": "a2cc1ee5294bf56b3bb7b4ae9930a4c0ee4cbc59a2bd89a5ac5fbc539a807537",
+  "urls": {
+    "attrs-26.1.0-py3-none-any.whl": "https://files.pythonhosted.org/packages/64/b4/17d4b0b2a2dc85a6df63d1157e028ed19f90d4cd97c36717afef2bc2f395/attrs-26.1.0-py3-none-any.whl",
+    "attrs-26.1.0.tar.gz": "https://files.pythonhosted.org/packages/9a/8e/82a0fe20a541c03148528be8cac2408564a6c9a0cc7e9171802bc1d26985/attrs-26.1.0.tar.gz",
+    "colorama-0.4.6-py2.py3-none-any.whl": "https://files.pythonhosted.org/packages/d1/d6/3965ed04c63042e047cb6a3e6ed1a63a35087b6a609aa3a15ed8ac56c221/colorama-0.4.6-py2.py3-none-any.whl",
+    "colorama-0.4.6.tar.gz": "https://files.pythonhosted.org/packages/d8/53/6f443c9a4a8358a93a6792e2acffb9d9d5cb0a5cfd8802644b7b1c9a02e4/colorama-0.4.6.tar.gz",
+    "docopt-0.6.2.tar.gz": "https://files.pythonhosted.org/packages/a2/55/8f8cab2afd404cf578136ef2cc5dfb50baa1761b68c9da1fb1e4eed343c9/docopt-0.6.2.tar.gz",
+    "iniconfig-2.3.1-py3-none-any.whl": "https://files.pythonhosted.org/packages/56/43/4ca9e49d27a1fcf6bece6f6aec0ea46bb9112489b93d4b688fb415457bdb/iniconfig-2.3.1-py3-none-any.whl",
+    "iniconfig-2.3.1.tar.gz": "https://files.pythonhosted.org/packages/01/e1/2069291243c926a2ff1cd706c7f3eeb9b62144bf60f77c9fb9ff2fb26bd3/iniconfig-2.3.1.tar.gz",
+    "packaging-26.3-py3-none-any.whl": "https://files.pythonhosted.org/packages/63/34/ba1c580383c9eada3711951fef0795c80b829a078d72188184bcab9dd527/packaging-26.3-py3-none-any.whl",
+    "packaging-26.3.tar.gz": "https://files.pythonhosted.org/packages/7d/fa/3944b40b07da9ce895c0e6303a5ab7d53da063554f534556b134a54d6093/packaging-26.3.tar.gz",
+    "pluggy-1.7.0-py3-none-any.whl": "https://files.pythonhosted.org/packages/40/9e/2b38731e0fc536806f16490e1a12d7f0dc2a1235aa8cc07bcc75416a7daa/pluggy-1.7.0-py3-none-any.whl",
+    "pluggy-1.7.0.tar.gz": "https://files.pythonhosted.org/packages/bf/db/7fc19e6f2dc92a966727031389fc2e08b558f0f25eb7403c1119ad4713cd/pluggy-1.7.0.tar.gz",
+    "pygments-2.21.0-py3-none-any.whl": "https://files.pythonhosted.org/packages/71/46/17f022dd3e953bf20a04a028a21ec746d942f8d2af30fa0f124fa0e6a684/pygments-2.21.0-py3-none-any.whl",
+    "pygments-2.21.0.tar.gz": "https://files.pythonhosted.org/packages/49/2e/ced460408999b33da6b31b0021b0f37d329e202d4169aeb164493778f25b/pygments-2.21.0.tar.gz",
+    "pytest-8.4.2-py3-none-any.whl": "https://files.pythonhosted.org/packages/a8/a4/20da314d277121d6534b3a980b29035dcd51e6744bd79075a6ce8fa4eb8d/pytest-8.4.2-py3-none-any.whl",
+    "pytest-8.4.2.tar.gz": "https://files.pythonhosted.org/packages/a3/5c/00a0e072241553e1a7496d638deababa67c5058571567b92a7eaa258397c/pytest-8.4.2.tar.gz"
+  },
+  "version": 2
 }

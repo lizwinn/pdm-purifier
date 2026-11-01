@@ -11,53 +11,64 @@
 # makes from the manifest, so PDM installs from pdm.lock, and builds what it
 # has to build, with no network and no other files.
 #
-# The result has:
+# The result has the attributes of the purifier contract (CONTRACT.md in
+# github:nix-purifiers/purifier):
+# - `packages.<name>`, for the project and each local package it depends on
+#   by path: what `pdm build` makes, its sdist and wheel, with the attributes
+#   `sdist` and `wheel` naming the two files.
+# - `tests`: the project's tests, run in the sandbox with every locked
+#   group installed.
+# - `release`: the project's own sdist and wheel, which
+#   `pdm-purifier publish` uploads. Null for a project that is not a
+#   distribution.
+# - `fetches`: the shared library's entries of every file and checkout the
+#   build fetches.
+# and three of its own:
 # - `environment`: a virtual environment with the project and its runtime
 #   dependencies installed (the locked groups in `groups`), and the
 #   project's scripts in `bin/`.
-# - `packages.<name>`, for the project and each local package it depends on
-#   by path: what `pdm build` makes, its sdist and wheel, which is what
-#   `pdm publish` uploads, with the attributes `sdist` and `wheel` naming the
-#   two files.
 # - `programs.<script>`: each console and GUI script of the project and its
 #   local packages, from `environment`, for `nix run`.
-# - `manifest`: the manifest that `pdm-purifier pdm` serves PDM from.
+# - `manifest`: the manifest that the plugin serves PDM from, which
+#   `pdm-purifier prefetch` keeps in .pdm-purifier/manifest.
 {
   lib,
-  pkgs,
-  stdenv,
-  runCommand,
-  writeText,
-  git,
-  glibc,
-  python3,
-  pdm-purifier,
   # The shared purifier library (github:nix-purifiers/purifier).
   purifier,
 }:
 {
+  # The package set to build with.
+  pkgs,
   # The directory that holds everything the project reads: the project
   # itself and the local packages it depends on by path.
   src,
+  # Replacements for the fetchers of the shared purifier library, passed
+  # to its fetchEntry unchanged, such as a `fetchurl` that sends
+  # credentials or uses a mirror.
+  fetchers ? { },
   # The project directory inside `src`, which holds pyproject.toml, pdm.lock
   # and pdm-purifier.lock.json.
   projectDir ? ".",
   # The Python the project builds and runs with. It must satisfy the
   # project's requires-python.
-  python ? python3,
+  python ? pkgs.python3,
   # The pdm.lock groups that `environment` installs.
   groups ? [ "default" ],
-  # pdm-purifier.lock.json, when it is not in the project directory.
-  lockFile ? null,
-  # A replacement for nixpkgs' fetchurl, for credentials or mirrors. The
-  # shared purifier library calls it with the arguments it passes to
-  # nixpkgs' fetchurl.
-  fetchurl ? null,
+  # The command `tests` runs in the project directory. By default it is
+  # `pdm run test` when the project defines a `test` script under
+  # [tool.pdm.scripts], and `pdm run python -m pytest` otherwise.
+  testCommand ? null,
+  # pdm-purifier.lock.json. A file outside `src` keeps the build external:
+  # `src` holds pdm.lock and the project, and the flake that calls the
+  # builder keeps pdm-purifier.lock.json.
+  lockFile ? (if projectDir == "." then src else src + "/${projectDir}") + "/pdm-purifier.lock.json",
   # What the builds of sdists and local packages need beyond Python and a C
   # compiler: tools such as pkg-config, and the system libraries a C
   # extension links against.
   nativeBuildInputs ? [ ],
   buildInputs ? [ ],
+  # PDM with the pdm-purifier plugin. By default it is built from `pkgs`.
+  pdm ? null,
 }:
 let
   inherit (builtins)
@@ -69,19 +80,35 @@ let
     listToAttrs
     map
     ;
+  inherit (pkgs)
+    stdenv
+    runCommand
+    writeText
+    git
+    glibc
+    ;
 
-  root = if projectDir == "." then src else src + "/${projectDir}";
-  lock = import ./lock.nix (
-    { inherit root; } // lib.optionalAttrs (lockFile != null) { inherit lockFile; }
+  pdmWithPlugin =
+    if pdm != null then
+      pdm
+    else
+      pkgs.callPackage ../../pkgs/pdm-with-plugin {
+        plugin = pkgs.callPackage ../../pkgs/plugin { };
+      };
+
+  originalRoot = if projectDir == "." then src else src + "/${projectDir}";
+  # The lock in memory (read-lock.nix), which checkLock of the shared
+  # library refuses with its problems, each naming `pdm-purifier lock`.
+  lock = purifier.checkLock (
+    import ./read-lock.nix { inherit lib; } { inherit src projectDir lockFile; }
   );
+  locked = purifier.entriesFor stdenv.hostPlatform.system lock;
   # The store path of a download entry of the lock, from the shared purifier
   # library: a file, or a version control checkout. A git entry with
   # `leaveDotGit` comes with a .git directory that the library rebuilds
   # from the entry's commit object, which PDM clones from.
-  fetchEntry = purifier.fetchEntry (
-    { inherit pkgs; } // lib.optionalAttrs (fetchurl != null) { inherit fetchurl; }
-  );
-  pyproject = builtins.fromTOML (builtins.readFile (root + "/pyproject.toml"));
+  fetchEntry = purifier.fetchEntry (fetchers // { inherit pkgs; });
+  pyproject = builtins.fromTOML (builtins.readFile (originalRoot + "/pyproject.toml"));
   projectName = pyproject.project.name or "project";
 
   platform = stdenv.hostPlatform;
@@ -96,7 +123,7 @@ let
 
   # For each locked version, the files a build on this system may install:
   # its wheels that install, or else its sdist.
-  versions = groupBy (entry: "${entry.name}==${entry.version}") lock.artifacts;
+  versions = groupBy (entry: "${entry.name}==${entry.version}") (filter (entry: entry ? url) locked);
   chosen = concatMap (
     key:
     let
@@ -124,7 +151,9 @@ let
     }
   ) chosen;
 
-  checkouts = map (entry: entry // { store = fetchEntry entry; }) lock.checkouts;
+  checkouts = map (entry: entry // { store = fetchEntry entry; }) (
+    filter (entry: !(entry ? url)) locked
+  );
   gitCheckouts = filter (entry: entry ? git) checkouts;
   otherCheckouts = filter (entry: !(entry ? git)) checkouts;
   vcsOf =
@@ -150,7 +179,9 @@ let
           requiresPython = entry.requiresPython or null;
         }) entries
       ) (groupBy (entry: entry.name) fetched);
-      findLinks = lock.findLinks or [ ];
+      findLinks = map (source: source.url) (
+        filter (source: (source.type or "index") == "find_links") (pyproject.tool.pdm.source or [ ])
+      );
       # Each locked git repository URL, to its checkout in the store.
       git = map (entry: {
         inherit (entry.git) url;
@@ -213,20 +244,22 @@ let
   '';
 
   buildTools = [
-    pdm-purifier.pdm-with-plugin
+    pdmWithPlugin
     git
     python
   ]
   ++ nativeBuildInputs;
 
-  # The project's outputs, recorded by `pdm-purifier lock`.
-  outputs = lock.outputs or [ ];
+  # The project's local distributions, from the lock's `outputs`
+  # (read-lock.nix), each with its name, path and scripts.
+  outputs = lib.mapAttrsToList (name: output: output // { inherit name; }) lock.outputs;
   isProjectOutput = output: output.path == ".";
   projectIsDistribution = lib.any isProjectOutput outputs;
 
   environment = stdenv.mkDerivation {
     name = "${projectName}-environment";
-    inherit src buildInputs;
+    inherit buildInputs;
+    inherit src;
     nativeBuildInputs = buildTools;
     dontConfigure = true;
     dontFixup = true;
@@ -251,8 +284,9 @@ let
     output:
     let
       dist = stdenv.mkDerivation {
-        name = "${output.name}-${output.version}-dist";
-        inherit src buildInputs;
+        name = "${output.name}-dist";
+        inherit buildInputs;
+        inherit src;
         nativeBuildInputs = buildTools;
         dontConfigure = true;
         dontFixup = true;
@@ -266,20 +300,18 @@ let
         '';
         dontInstall = true;
       };
-      # A wheel with platform tags is named for the system it was built on,
-      # so its file is copied out under a name of its own.
-      wheel =
-        if output.pure then
-          "${dist}/${output.wheel}"
-        else
-          runCommand "${output.name}-${output.version}-wheel" { } ''
-            cp ${dist}/*.whl "$out"
-          '';
+      # The file names hold the version, which a build may compute, so each
+      # file is copied out under a name of its own.
+      copy =
+        kind: pattern:
+        runCommand "${output.name}-${kind}" { } ''
+          cp ${dist}/${pattern} "$out"
+        '';
     in
     dist
     // {
-      inherit wheel;
-      sdist = if output.sdist != null then "${dist}/${output.sdist}" else null;
+      wheel = copy "wheel" "*.whl";
+      sdist = copy "sdist" "*.tar.gz";
     };
 
   programs = listToAttrs (
@@ -291,16 +323,59 @@ let
           mkdir -p "$out/bin"
           ln -s ${environment}/bin/${script} "$out/bin/${script}"
         '';
-      }) (output.scripts.console ++ output.scripts.gui)
+      }) output.scripts
     ) outputs
   );
-in
-{
-  inherit environment manifest programs;
   packages = listToAttrs (
     map (output: {
       inherit (output) name;
       value = package output;
     }) outputs
   );
+
+  scripts = pyproject.tool.pdm.scripts or { };
+  test =
+    if testCommand != null then
+      testCommand
+    else if scripts ? test then
+      "pdm run test"
+    else
+      "pdm run python -m pytest";
+
+  tests = stdenv.mkDerivation {
+    name = "${projectName}-tests";
+    inherit buildInputs;
+    inherit src;
+    nativeBuildInputs = buildTools;
+    dontConfigure = true;
+    dontFixup = true;
+    buildPhase = ''
+      runHook preBuild
+      ${setupPdm}
+      cd ${lib.escapeShellArg projectDir}
+      ${python.interpreter} -m venv --without-pip "$TMPDIR/venv"
+      pdm use --first --ignore-remembered "$TMPDIR/venv/bin/python"
+      # Every locked group, the development groups among them.
+      pdm sync ${lib.optionalString (!projectIsDistribution) "--no-self"}
+      ${test}
+      runHook postBuild
+    '';
+    installPhase = ''
+      touch "$out"
+    '';
+  };
+
+  projectOutput = lib.findFirst isProjectOutput null outputs;
+in
+{
+  inherit
+    environment
+    manifest
+    programs
+    packages
+    tests
+    ;
+  release = if projectOutput == null then null else packages.${projectOutput.name};
+  # Every entry of the lock, for every system.
+  fetches = lock.entries;
 }

@@ -4,12 +4,14 @@
 # the PDM the command was built with:
 # - with `package`, that local distribution's sdist and wheel, which
 #   `publish` uploads;
-# - without it, the manifest that `pdm-purifier pdm` serves PDM from, for
-#   the Python version `pythonVersion` that the project's environment runs.
+# - without it, the manifest that `pdm-purifier prefetch` keeps for the
+#   plugin to serve PDM from, for the Python version `pythonVersion` that
+#   the project's environment runs.
 #
 # `src` is the absolute path of the directory that holds the project and
 # the local packages it depends on by path. `projectDir` is the directory
-# of the project inside `src`.
+# of the project inside `src`. `lockFile` is the absolute path of
+# pdm-purifier.lock.json, inside the project or outside it.
 {
   nixpkgs,
   # The store path of the PDM, with the plugin, that the command runs.
@@ -18,6 +20,7 @@
   purifier,
   src,
   projectDir ? ".",
+  lockFile,
   package ? null,
   pythonVersion ? null,
 }:
@@ -53,14 +56,16 @@ let
         inherit pythonVersion;
       };
 
-  buildPdmProject = pkgs.callPackage ./build-pdm-project.nix {
-    pdm-purifier.pdm-with-plugin = builtins.storePath pdm;
+  buildPdmProject = import ./build-pdm-project.nix {
+    inherit (pkgs) lib;
     purifier = import (builtins.storePath purifier) { inherit (pkgs) lib; };
   };
 
   project = buildPdmProject {
+    inherit pkgs projectDir;
     src = source;
-    inherit projectDir;
+    lockFile = /. + lockFile;
+    pdm = builtins.storePath pdm;
     python = if package == null then python else pkgs.python3;
   };
 in
