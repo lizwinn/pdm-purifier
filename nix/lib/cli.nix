@@ -55,7 +55,7 @@ let
 
   buildPdmProject = pkgs.callPackage ./build-pdm-project.nix {
     pdm-purifier.pdm-with-plugin = builtins.storePath pdm;
-    purifier = import "${builtins.storePath purifier}/nix/lib" { inherit (pkgs) lib; };
+    purifier = import (builtins.storePath purifier) { inherit (pkgs) lib; };
   };
 
   project = buildPdmProject {

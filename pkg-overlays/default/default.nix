@@ -6,18 +6,25 @@
 # them, where nixpkgs keeps its own builders, so a package written for
 # callPackage takes it by name. A consumer that lists this flake in
 # `projects` holds it as `pdm-purifier/default`, which its package sets
-# apply by default. The builder takes the shared purifier library from the
-# closure library, which has it because this flake lists `purifier` in its
-# `projects`.
-{ closure-lib, ... }:
+# apply by default.
+#
+# Both take the shared purifier library: the builder its functions, and the
+# command its source, for the builds it runs outside a flake.
+{ closure-lib, closure-inputs, ... }:
 let
   packages = closure-lib.caisson.nixpkgs.mkPackagesOverlay ../../pkgs "pdm-purifier";
 in
 {
   overlay =
     final: prev:
-    packages final prev
+    let
+      added = packages final prev;
+    in
+    added
     // {
+      pdm-purifier = added.pdm-purifier // {
+        cli = added.pdm-purifier.cli.override { purifierSource = closure-inputs.purifier; };
+      };
       buildPdmProject = final.callPackage ../../nix/lib/build-pdm-project.nix {
         inherit (closure-lib) purifier;
       };

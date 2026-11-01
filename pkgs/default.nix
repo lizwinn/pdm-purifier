@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-{ callPackage, lib, ... }:
+{ callPackage, ... }:
 let
   plugin = callPackage ./plugin { };
   pdm-with-plugin = callPackage ./pdm-with-plugin { inherit plugin; };
@@ -12,10 +12,10 @@ in
   # it.
   inherit pdm-with-plugin;
   # The `pdm-purifier` command: `lock`, `pdm` (PDM offline on the locked
-  # files) and `publish`. Its Nix builds import the shared purifier library
-  # from the library's source, which the closure library names.
+  # files) and `publish`. The default package overlay gives it the source of
+  # the shared purifier library.
   cli = callPackage ./cli {
     inherit pdm-with-plugin;
-    purifierSource = lib.purifier.source;
+    purifierSource = null;
   };
 }
