@@ -185,6 +185,11 @@ The build runs on Linux for x86_64 and aarch64, where the wheel tags are
 checked against the package set's glibc. pdm.lock must use SHA-256 file
 hashes, which is PDM's default.
 
+pdm.lock does not record the system that a file is for, so the entries of
+the lock carry no `systems`. For each locked version, the builder fetches
+the wheels whose file names show that they install with its Python on its
+system, or else the sdist.
+
 The lock run builds the project, its local packages, its version control
 dependencies, and each dependency that has no wheel for Linux on x86_64 or
 on aarch64 with the lock run's Python. A dependency with a C extension
