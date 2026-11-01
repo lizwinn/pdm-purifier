@@ -14,6 +14,8 @@
   nixpkgs,
   # The store path of the PDM, with the plugin, that the command runs.
   pdm,
+  # The source of the shared purifier library.
+  purifier,
   src,
   projectDir ? ".",
   package ? null,
@@ -53,6 +55,7 @@ let
 
   buildPdmProject = pkgs.callPackage ./build-pdm-project.nix {
     pdm-purifier.pdm-with-plugin = builtins.storePath pdm;
+    purifier = import "${builtins.storePath purifier}/nix/lib" { inherit (pkgs) lib; };
   };
 
   project = buildPdmProject {

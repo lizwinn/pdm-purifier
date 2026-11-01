@@ -98,6 +98,7 @@ def nix_build(root: Path, out_link: Path, **args: str) -> Path:
         str(Path(setting("PDM_PURIFIER_NIX_LIB")) / "cli.nix"),
         "--argstr", "nixpkgs", setting("PDM_PURIFIER_NIXPKGS"),
         "--argstr", "pdm", setting("PDM_PURIFIER_PDM"),
+        "--argstr", "purifier", setting("PDM_PURIFIER_LIBRARY"),
         "--argstr", "src", str(src),
         "--argstr", "projectDir", project_dir,
         "--out-link", str(out_link),

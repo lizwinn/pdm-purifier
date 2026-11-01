@@ -24,17 +24,16 @@
 # - `manifest`: the manifest that `pdm-purifier pdm` serves PDM from.
 {
   lib,
+  pkgs,
   stdenv,
   runCommand,
   writeText,
-  fetchgit,
-  fetchhg,
-  fetchsvn,
-  fetchbzr,
   git,
   glibc,
   python3,
   pdm-purifier,
+  # The shared purifier library (github:nix-purifiers/purifier).
+  purifier,
 }:
 {
   # The directory that holds everything the project reads: the project
@@ -50,7 +49,9 @@
   groups ? [ "default" ],
   # pdm-purifier.lock.json, when it is not in the project directory.
   lockFile ? null,
-  # A replacement for the fetcher of locked files; see nix/lib/fetch.nix.
+  # A replacement for nixpkgs' fetchurl, for credentials or mirrors. The
+  # shared purifier library calls it with the arguments it passes to
+  # nixpkgs' fetchurl.
   fetchurl ? null,
   # What the builds of sdists and local packages need beyond Python and a C
   # compiler: tools such as pkg-config, and the system libraries a C
@@ -73,13 +74,19 @@ let
   lock = import ./lock.nix (
     { inherit root; } // lib.optionalAttrs (lockFile != null) { inherit lockFile; }
   );
-  fetch = import ./fetch.nix { inherit fetchurl; };
+  # The store path of a download entry of the lock, from the shared purifier
+  # library: a file, or a version control checkout. A git entry with
+  # `leaveDotGit` comes with a .git directory that the library rebuilds
+  # from the entry's commit object, which PDM clones from.
+  fetchEntry = purifier.fetchEntry (
+    { inherit pkgs; } // lib.optionalAttrs (fetchurl != null) { inherit fetchurl; }
+  );
   pyproject = builtins.fromTOML (builtins.readFile (root + "/pyproject.toml"));
   projectName = pyproject.project.name or "project";
 
   platform = stdenv.hostPlatform;
   target = "Python ${python.pythonVersion} on ${platform.system}";
-  installs = import ./wheels.nix {
+  installs = purifier.wheels {
     inherit (python) pythonVersion;
     arch = platform.parsed.cpu.name;
     glibcVersion = glibc.version;
@@ -105,16 +112,11 @@ let
       throw "pdm-purifier: no wheel of ${key} installs with ${target}, and it has no sdist"
   ) (attrNames versions);
 
-  storeName = file: lib.strings.sanitizeDerivationName file;
-
   fetched = map (
     entry:
     entry
     // {
-      store = fetch {
-        name = storeName entry.file;
-        inherit (entry) url mirrors hash;
-      };
+      store = fetchEntry entry;
       sha256 = convertHash {
         inherit (entry) hash;
         toHashFormat = "base16";
@@ -122,99 +124,7 @@ let
     }
   ) chosen;
 
-  # The plain checkout of a git entry, without .git, whose hash fetchgit
-  # reproduces.
-  plainGitCheckout =
-    entry:
-    fetchgit {
-      inherit (entry.git) url rev;
-      leaveDotGit = false;
-      fetchSubmodules = entry.git.submodules;
-      inherit (entry) hash;
-    };
-
-  # A git checkout with a .git directory that holds the locked commit, for
-  # PDM to clone from. A hash over a .git directory that fetchgit leaves is
-  # not reproducible, so the entry pins the plain checkout and carries the
-  # raw commit object, and this derivation rebuilds the repository: it
-  # writes the checkout's tree, with each submodule commit (gitlink) of the
-  # entry, then the commit object, and marks the commit as the boundary of a
-  # shallow clone, so git needs none of its parents. It fails unless the
-  # commit's ID is the locked revision and its tree is the tree it wrote.
-  gitRepository =
-    entry:
-    runCommand "${storeName entry.name}-git-${builtins.substring 0 12 entry.git.rev}"
-      {
-        nativeBuildInputs = [ git ];
-        checkout = plainGitCheckout entry;
-        inherit (entry.git) rev;
-        commitObject = entry.git.commitObject.object;
-        gitlinks = lib.concatMapStrings (
-          link: "${link.rev} ${link.path}\n"
-        ) entry.git.commitObject.gitlinks;
-        passAsFile = [ "gitlinks" ];
-      }
-      ''
-        cp -r "$checkout" "$out"
-        chmod -R u+w "$out"
-        cd "$out"
-        export HOME="$TMPDIR"
-        git init --quiet
-        git config core.autocrlf false
-        git add --all --force
-        while read -r sha path; do
-          [ -n "$sha" ] || continue
-          rmdir "$path" 2>/dev/null || true
-          git update-index --add --cacheinfo "160000,$sha,$path"
-        done < "$gitlinksPath"
-        tree=$(git write-tree)
-        printf '%s' "$commitObject" | base64 -d > "$TMPDIR/commit"
-        written=$(git hash-object -t commit -w --literally "$TMPDIR/commit")
-        if [ "$written" != "$rev" ]; then
-          echo "pdm-purifier: the commit object of ${entry.git.url} hashes to $written, not $rev" >&2
-          exit 1
-        fi
-        if [ "$(git cat-file commit "$rev" | head -n 1)" != "tree $tree" ]; then
-          echo "pdm-purifier: the checkout of ${entry.git.url} does not have the tree of $rev" >&2
-          exit 1
-        fi
-        echo "$rev" > .git/shallow
-        git update-ref refs/heads/main "$rev"
-        git symbolic-ref HEAD refs/heads/main
-        git read-tree "$rev"
-        for d in $(cut -d' ' -f2- < "$gitlinksPath"); do mkdir -p "$d"; done
-      '';
-
-  # A version control checkout of the lock, fetched with the nixpkgs fetcher
-  # of its kind, as the shared purifier library's entry kinds describe.
-  fetchCheckout =
-    entry:
-    if entry ? git then
-      if entry.git.leaveDotGit then gitRepository entry else plainGitCheckout entry
-    else if entry ? hg then
-      fetchhg {
-        inherit (entry.hg) url rev;
-        inherit (entry) hash;
-      }
-    else if entry ? svn then
-      fetchsvn {
-        inherit (entry.svn)
-          url
-          rev
-          ignoreExternals
-          ignoreKeywords
-          ;
-        inherit (entry) hash;
-      }
-    else if entry ? bzr then
-      fetchbzr {
-        inherit (entry.bzr) url rev;
-        inherit (entry) hash;
-      }
-    else
-      throw "pdm-purifier: pdm-purifier.lock.json has a checkout of an unknown kind: ${builtins.toJSON entry}";
-
-  checkouts = map (entry: entry // { store = fetchCheckout entry; }) lock.checkouts;
+  checkouts = map (entry: entry // { store = fetchEntry entry; }) lock.checkouts;
   gitCheckouts = filter (entry: entry ? git) checkouts;
   otherCheckouts = filter (entry: !(entry ? git)) checkouts;
   vcsOf =

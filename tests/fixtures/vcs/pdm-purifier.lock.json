@@ -177,6 +177,7 @@
       "hash": "sha256-sSSMcFf/yYz5iHGnHnA1dupMmf8KNy+hPvRgciGaDgk=",
       "hg": {
         "rev": "6d255163e92b6d75ee3cf963a7e01d41a569ca64",
+        "subrepos": true,
         "url": "https://hg.sr.ht/~olly/yoyo"
       },
       "name": "yoyo-migrations",

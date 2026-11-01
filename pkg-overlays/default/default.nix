@@ -1,11 +1,14 @@
 # SPDX-License-Identifier: MIT
 #
 # The default package overlay. It adds the packages of pkgs/ under
-# `pkgs.pdm-purifier` (`.plugin`, `.pdm-with-plugin`, `.cli`), and the builder
-# `pkgs.buildPdmProject` (nix/lib/build-pdm-project.nix) beside them, where
-# nixpkgs keeps its own builders, so a package written for callPackage takes
-# it by name. A consumer that lists this flake in `projects` holds it as
-# `pdm-purifier/default`, which its package sets apply by default.
+# `pkgs.pdm-purifier` (`.plugin`, `.pdm-with-plugin`, `.cli`), and the
+# builder `pkgs.buildPdmProject` (nix/lib/build-pdm-project.nix) beside
+# them, where nixpkgs keeps its own builders, so a package written for
+# callPackage takes it by name. A consumer that lists this flake in
+# `projects` holds it as `pdm-purifier/default`, which its package sets
+# apply by default. The builder takes the shared purifier library from the
+# closure library, which has it because this flake lists `purifier` in its
+# `projects`.
 { closure-lib, ... }:
 let
   packages = closure-lib.caisson.nixpkgs.mkPackagesOverlay ../../pkgs "pdm-purifier";
@@ -15,6 +18,8 @@ in
     final: prev:
     packages final prev
     // {
-      buildPdmProject = final.callPackage ../../nix/lib/build-pdm-project.nix { };
+      buildPdmProject = final.callPackage ../../nix/lib/build-pdm-project.nix {
+        inherit (closure-lib) purifier;
+      };
     };
 }

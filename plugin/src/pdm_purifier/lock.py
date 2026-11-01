@@ -287,7 +287,10 @@ class Locker:
         if not nixpkgs:
             raise LockError("PDM_PURIFIER_NIXPKGS is not set; run `pdm-purifier lock`")
         fetcher = {"hg": "fetchhg", "svn": "fetchsvn", "bzr": "fetchbzr"}[vcs]
-        arguments = " ".join(f"{key} = {json.dumps(value)};" for key, value in fields.items())
+        # The entry's field names, as the shared library names them, mapped
+        # to the arguments of the nixpkgs fetcher.
+        renamed = {"subrepos": "fetchSubrepos"}
+        arguments = " ".join(f"{renamed.get(key, key)} = {json.dumps(value)};" for key, value in fields.items())
 
         def build(hash_value: str) -> subprocess.CompletedProcess[str]:
             expression = f"with import {nixpkgs} {{ }}; {fetcher} {{ {arguments} hash = {json.dumps(hash_value)}; }}"
@@ -319,6 +322,9 @@ class Locker:
             # A plain `svn checkout`, which is what unearth runs, fetches
             # externals and expands keywords.
             fields.update(ignoreExternals=False, ignoreKeywords=False)
+        elif vcs == "hg":
+            # `hg update` after unearth's clone checks out subrepositories.
+            fields.update(subrepos=True)
         sri_hash, store = self.prefetch_other(vcs, fields)
         subdirectory = package.get("subdirectory")
         self.checkouts[url] = {

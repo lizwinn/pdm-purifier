@@ -13,6 +13,8 @@
   nix-prefetch-git,
   path,
   pdm-with-plugin,
+  # The source of the shared purifier library.
+  purifierSource,
 }:
 let
   pdm = pdm-with-plugin;
@@ -49,7 +51,8 @@ stdenvNoCC.mkDerivation (finalAttrs: {
       } \
       --set PDM_PURIFIER_NIX_LIB $out/share/pdm-purifier/nix-lib \
       --set PDM_PURIFIER_NIXPKGS ${path} \
-      --set PDM_PURIFIER_PDM ${pdm}
+      --set PDM_PURIFIER_PDM ${pdm} \
+      --set PDM_PURIFIER_LIBRARY ${purifierSource}
     runHook postInstall
   '';
 
