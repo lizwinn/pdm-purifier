@@ -1,0 +1,154 @@
+{
+  "artifacts": [
+    {
+      "file": "importlib_metadata-10.1.0-py3-none-any.whl",
+      "hash": "sha256-z0XOZqkpxk6ZQYWoCcBIQNBQHbF+ZjgQ2ZPQ9IKSZcc=",
+      "mirrors": [],
+      "name": "importlib-metadata",
+      "path": "importlib_metadata-10.1.0-py3-none-any.whl",
+      "requiresPython": ">=3.11",
+      "url": "https://files.pythonhosted.org/packages/65/b6/495438ad95e0102aff8f6786b5474202f38cd5d4700d03a72b77977dec10/importlib_metadata-10.1.0-py3-none-any.whl",
+      "version": "10.1.0"
+    },
+    {
+      "file": "importlib_metadata-10.1.0.tar.gz",
+      "hash": "sha256-grBAR/oJeSwajP7d/gi+x55LE8KchGmw05SYYPYQF+g=",
+      "mirrors": [],
+      "name": "importlib-metadata",
+      "path": "importlib_metadata-10.1.0.tar.gz",
+      "requiresPython": ">=3.11",
+      "url": "https://files.pythonhosted.org/packages/98/f6/4eda8458eb00ec03e715c376c6b23b3def69687924c68d36d1c4003d3bc4/importlib_metadata-10.1.0.tar.gz",
+      "version": "10.1.0"
+    },
+    {
+      "file": "pdm_backend-2.5.0-py3-none-any.whl",
+      "hash": "sha256-W4dGtWehah/VBs5m7ijonUY3RSb1IjiqG5bMLAgkXGM=",
+      "mirrors": [],
+      "name": "pdm-backend",
+      "path": "pdm_backend-2.5.0-py3-none-any.whl",
+      "requiresPython": ">=3.9",
+      "url": "https://files.pythonhosted.org/packages/5e/a6/c743c589188f9e45e1a7c8f3e2e725f9b5df5decd72779fbfc1695b45866/pdm_backend-2.5.0-py3-none-any.whl",
+      "version": "2.5.0"
+    },
+    {
+      "file": "pdm_backend-2.5.0.tar.gz",
+      "hash": "sha256-eVO5lFY9MVF1XjNkudDP6BftDq7N8nyPd39BLSa82Yo=",
+      "mirrors": [],
+      "name": "pdm-backend",
+      "path": "pdm_backend-2.5.0.tar.gz",
+      "requiresPython": ">=3.9",
+      "url": "https://files.pythonhosted.org/packages/fc/d5/a82f533ed51f91a2183faf67a1fcb3b759615ffeca95d05b3e7648bf84bf/pdm_backend-2.5.0.tar.gz",
+      "version": "2.5.0"
+    },
+    {
+      "file": "setuptools-84.2.1-py3-none-any.whl",
+      "hash": "sha256-yhQLRdUyWpR4+IDjUUhPYv7xXzNkYuRJygwDyHPVicI=",
+      "mirrors": [],
+      "name": "setuptools",
+      "path": "setuptools-84.2.1-py3-none-any.whl",
+      "requiresPython": ">=3.10",
+      "url": "https://files.pythonhosted.org/packages/ef/55/6dc6d6bb953bdfc52519a0059592c52b6e3b8ad51cf8256dffceb55b0610/setuptools-84.2.1-py3-none-any.whl",
+      "version": "84.2.1"
+    },
+    {
+      "file": "setuptools-84.2.1.tar.gz",
+      "hash": "sha256-P/iztUkqCqZpYPRBk2Woa4TgEwcNQxPk1KaJT11k1rw=",
+      "mirrors": [],
+      "name": "setuptools",
+      "path": "setuptools-84.2.1.tar.gz",
+      "requiresPython": ">=3.10",
+      "url": "https://files.pythonhosted.org/packages/70/b3/c19426f783614d625699a4b247faf628ea9ab1db228674491767b417f9e1/setuptools-84.2.1.tar.gz",
+      "version": "84.2.1"
+    },
+    {
+      "file": "sqlparse-0.6.0-py3-none-any.whl",
+      "hash": "sha256-uGHAKIzi+lYgmppkEtLgZqxmSzhzuJwmydhBXo4ymW8=",
+      "mirrors": [],
+      "name": "sqlparse",
+      "path": "sqlparse-0.6.0-py3-none-any.whl",
+      "requiresPython": ">=3.10",
+      "url": "https://files.pythonhosted.org/packages/d9/50/f00935da0ec7cbf325f8dc4f772ae46fbc7b672dd62876e73f0a94adda57/sqlparse-0.6.0-py3-none-any.whl",
+      "version": "0.6.0"
+    },
+    {
+      "file": "sqlparse-0.6.0.tar.gz",
+      "hash": "sha256-ETw1x1Nlq5zJxyMdaMZCj7EcCF/I6esa1lm33b9s0rk=",
+      "mirrors": [],
+      "name": "sqlparse",
+      "path": "sqlparse-0.6.0.tar.gz",
+      "requiresPython": ">=3.10",
+      "url": "https://files.pythonhosted.org/packages/5f/d3/3f06a1006f2261d1342aefb3c71eed02f5d4ca5bdbecd86ebc12ad38306e/sqlparse-0.6.0.tar.gz",
+      "version": "0.6.0"
+    },
+    {
+      "file": "tabulate-0.10.0-py3-none-any.whl",
+      "hash": "sha256-8LBiLlZzNcj6uqplnxszvLbd/i5JYHG3Q6oRP4d08tM=",
+      "mirrors": [],
+      "name": "tabulate",
+      "path": "tabulate-0.10.0-py3-none-any.whl",
+      "requiresPython": ">=3.10",
+      "url": "https://files.pythonhosted.org/packages/99/55/db07de81b5c630da5cbf5c7df646580ca26dfaefa593667fc6f2fe016d2e/tabulate-0.10.0-py3-none-any.whl",
+      "version": "0.10.0"
+    },
+    {
+      "file": "tabulate-0.10.0.tar.gz",
+      "hash": "sha256-4s/ej3lCD23u/97amq7DtrxavOlHZV0XrGYrEm5Ipg0=",
+      "mirrors": [],
+      "name": "tabulate",
+      "path": "tabulate-0.10.0.tar.gz",
+      "requiresPython": ">=3.10",
+      "url": "https://files.pythonhosted.org/packages/46/58/8c37dea7bbf769b20d58e7ace7e5edfe65b849442b00ffcdd56be88697c6/tabulate-0.10.0.tar.gz",
+      "version": "0.10.0"
+    },
+    {
+      "file": "zipp-4.1.2-py3-none-any.whl",
+      "hash": "sha256-swy2zSUxIhacR94kXKJKhrrCpdOAK6Fb97pkFOueFE0=",
+      "mirrors": [],
+      "name": "zipp",
+      "path": "zipp-4.1.2-py3-none-any.whl",
+      "requiresPython": ">=3.10",
+      "url": "https://files.pythonhosted.org/packages/b8/44/7bd2007260da11cccca29ba2d4c345f1287aa663db38ee7cefeabf6386a5/zipp-4.1.2-py3-none-any.whl",
+      "version": "4.1.2"
+    },
+    {
+      "file": "zipp-4.1.2.tar.gz",
+      "hash": "sha256-z0dLkLB+qTJjfhfGuUed4rKIKQCw0xG9r09cAAoVqX8=",
+      "mirrors": [],
+      "name": "zipp",
+      "path": "zipp-4.1.2.tar.gz",
+      "requiresPython": ">=3.10",
+      "url": "https://files.pythonhosted.org/packages/18/05/ba1458dee0ac485b2a01071c1b88f5199fe878a485df482e10e1ef2205cc/zipp-4.1.2.tar.gz",
+      "version": "4.1.2"
+    }
+  ],
+  "checkouts": [
+    {
+      "hash": "sha256-sSSMcFf/yYz5iHGnHnA1dupMmf8KNy+hPvRgciGaDgk=",
+      "hg": {
+        "rev": "6d255163e92b6d75ee3cf963a7e01d41a569ca64",
+        "url": "https://hg.sr.ht/~olly/yoyo"
+      },
+      "name": "yoyo-migrations",
+      "path": "hg/yoyo-migrations-6d255163e92b"
+    }
+  ],
+  "findLinks": [],
+  "inputsHash": "2d5b13677cd9d044d3cfebfe20ed7eca3e173202d2ba6c145e9b81f39afd9e4f",
+  "outputs": [
+    {
+      "name": "vcs",
+      "path": ".",
+      "pure": true,
+      "scripts": {
+        "console": [
+          "vcs"
+        ],
+        "gui": []
+      },
+      "sdist": "vcs-0.1.0.tar.gz",
+      "version": "0.1.0",
+      "wheel": "vcs-0.1.0-py3-none-any.whl"
+    }
+  ],
+  "version": 1
+}

@@ -1,0 +1,16 @@
+[project]
+name = "vcs"
+version = "0.1.0"
+description = "A pdm-purifier fixture: dependencies from Mercurial and Subversion"
+requires-python = ">=3.11"
+dependencies = [
+    # A Mercurial repository at a revision.
+    "yoyo-migrations @ hg+https://hg.sr.ht/~olly/yoyo@6d255163e92b",
+]
+
+[project.scripts]
+vcs = "vcs:main"
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"

@@ -39,6 +39,9 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     makeWrapper ${python3.interpreter} $out/bin/pdm-purifier \
       --add-flags "-I $out/share/pdm-purifier/pdm_purifier_cli.py" \
       --prefix PATH : ${
+        # The lock run prefetches git checkouts with nix-prefetch-git, and the
+        # other version control systems with their nixpkgs fetchers through
+        # the Nix daemon.
         lib.makeBinPath [
           git
           nix-prefetch-git

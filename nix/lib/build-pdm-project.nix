@@ -28,6 +28,9 @@
   runCommand,
   writeText,
   fetchgit,
+  fetchhg,
+  fetchsvn,
+  fetchbzr,
   git,
   glibc,
   python3,
@@ -115,17 +118,44 @@ let
     }
   ) chosen;
 
-  checkouts = map (
+  # A version control checkout of the lock, fetched with the nixpkgs fetcher
+  # of its kind, as the shared purifier library's entry kinds describe.
+  fetchCheckout =
     entry:
-    entry
-    // {
-      store = fetchgit {
+    if entry ? git then
+      fetchgit {
         inherit (entry.git) url rev leaveDotGit;
         fetchSubmodules = entry.git.submodules;
         inherit (entry) hash;
-      };
-    }
-  ) lock.git;
+      }
+    else if entry ? hg then
+      fetchhg {
+        inherit (entry.hg) url rev;
+        inherit (entry) hash;
+      }
+    else if entry ? svn then
+      fetchsvn {
+        inherit (entry.svn) url rev ignoreExternals ignoreKeywords;
+        inherit (entry) hash;
+      }
+    else if entry ? bzr then
+      fetchbzr {
+        inherit (entry.bzr) url rev;
+        inherit (entry) hash;
+      }
+    else
+      throw "pdm-purifier: pdm-purifier.lock.json has a checkout of an unknown kind: ${builtins.toJSON entry}";
+
+  checkouts = map (entry: entry // { store = fetchCheckout entry; }) lock.checkouts;
+  gitCheckouts = filter (entry: entry ? git) checkouts;
+  otherCheckouts = filter (entry: !(entry ? git)) checkouts;
+  vcsOf =
+    entry:
+    lib.findFirst (kind: entry ? ${kind}) (throw "unreachable") [
+      "hg"
+      "svn"
+      "bzr"
+    ];
 
   manifest = writeText "pdm-purifier-manifest.json" (
     builtins.toJSON {
@@ -143,11 +173,24 @@ let
         }) entries
       ) (groupBy (entry: entry.name) fetched);
       findLinks = lock.findLinks or [ ];
-      # Each locked repository URL, to its checkout in the store.
+      # Each locked git repository URL, to its checkout in the store.
       git = map (entry: {
         inherit (entry.git) url;
         store = "${entry.store}";
-      }) checkouts;
+      }) gitCheckouts;
+      # Each locked Mercurial, Subversion and Bazaar checkout, which the
+      # plugin copies in place of a clone.
+      vcs = map (
+        entry:
+        let
+          kind = vcsOf entry;
+        in
+        {
+          vcs = kind;
+          inherit (entry.${kind}) url rev;
+          store = "${entry.store}";
+        }
+      ) otherCheckouts;
     }
   );
 
@@ -167,7 +210,7 @@ let
   ++ map (entry: {
     key = "url.${entry.store}.insteadOf";
     value = entry.git.url;
-  }) checkouts;
+  }) gitCheckouts;
 
   gitEnvironment = lib.concatStrings (
     lib.imap0 (i: item: ''

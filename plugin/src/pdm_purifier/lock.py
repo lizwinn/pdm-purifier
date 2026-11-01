@@ -29,6 +29,7 @@ import base64
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import tarfile
@@ -124,7 +125,8 @@ class Locker:
         self.record = Path(record)
         # Entries by store path in the output tree, so every file appears once.
         self.artifacts: dict[str, dict] = {}
-        self.git: dict[str, dict] = {}
+        # Version control checkouts by repository URL.
+        self.checkouts: dict[str, dict] = {}
         self._pages: dict[str, dict[str, Any]] = {}
 
     # -- index lookups -----------------------------------------------------
@@ -228,16 +230,78 @@ class Locker:
         return json.loads(out)["hash"]
 
     def add_git(self, name: str, url: str, rev: str) -> None:
-        if url in self.git:
-            if self.git[url]["git"]["rev"] != rev:
+        if url in self.checkouts:
+            if self.checkouts[url]["git"]["rev"] != rev:
                 raise LockError(f"{url} is locked at two revisions; pdm-purifier keeps one per URL")
             return
-        self.git[url] = {
+        self.checkouts[url] = {
             "name": name,
             "path": f"git/{normalize_name(name)}-{rev[:12]}",
             "git": {"url": url, "rev": rev, "submodules": False, "leaveDotGit": True},
             "hash": self.prefetch(url, rev),
         }
+
+    # -- Mercurial, Subversion and Bazaar ----------------------------------
+
+    def prefetch_other(self, vcs: str, fields: dict[str, Any]) -> tuple[str, Path]:
+        """The NAR hash and store path of a checkout, made by the nixpkgs
+        fetcher that the Nix build uses (fetchhg, fetchsvn or fetchbzr).
+
+        The fetcher runs through the Nix daemon, first with a placeholder
+        hash, whose mismatch error names the real one, and then with the real
+        hash. The hash so comes from the build's own fetcher, and the fetch
+        uses the daemon's network access."""
+        nixpkgs = os.environ.get("PDM_PURIFIER_NIXPKGS")
+        if not nixpkgs:
+            raise LockError("PDM_PURIFIER_NIXPKGS is not set; run `pdm-purifier lock`")
+        fetcher = {"hg": "fetchhg", "svn": "fetchsvn", "bzr": "fetchbzr"}[vcs]
+        arguments = " ".join(f"{key} = {json.dumps(value)};" for key, value in fields.items())
+
+        def build(hash_value: str) -> subprocess.CompletedProcess[str]:
+            expression = f"with import {nixpkgs} {{ }}; {fetcher} {{ {arguments} hash = {json.dumps(hash_value)}; }}"
+            return subprocess.run(
+                ["nix", "--extra-experimental-features", "nix-command", "build", "--impure", "--no-link", "--print-out-paths", "--expr", expression],
+                capture_output=True,
+                text=True,
+            )
+
+        attempt = build("sha256-" + "A" * 43 + "=")
+        found = re.search(r"got:\s+(sha256-\S+)", attempt.stderr)
+        if found is None:
+            raise LockError(f"fetching {fields['url']} at {fields['rev']} with {fetcher} failed:\n{attempt.stderr}")
+        sri_hash = found.group(1)
+        final = build(sri_hash)
+        if final.returncode != 0:
+            raise LockError(f"fetching {fields['url']} at {fields['rev']} with {fetcher} failed:\n{final.stderr}")
+        return sri_hash, Path(final.stdout.strip().splitlines()[-1])
+
+    def lock_other_vcs_package(self, package: dict, vcs: str) -> Path:
+        """Lock a Mercurial, Subversion or Bazaar dependency, and return a
+        writable copy of its checkout, for the build that records its build
+        requirements."""
+        url = package[vcs].removeprefix(f"{vcs}+")
+        rev = str(package["revision"])
+        name = package["name"]
+        fields: dict[str, Any] = {"url": url, "rev": rev}
+        if vcs == "svn":
+            # A plain `svn checkout`, which is what unearth runs, fetches
+            # externals and expands keywords.
+            fields.update(ignoreExternals=False, ignoreKeywords=False)
+        sri_hash, store = self.prefetch_other(vcs, fields)
+        self.checkouts[url] = {
+            "name": name,
+            "path": f"{vcs}/{normalize_name(name)}-{rev[:12]}",
+            vcs: fields,
+            "hash": sri_hash,
+        }
+        checkout = self.work / vcs / f"{normalize_name(name)}-{rev[:12]}"
+        if not checkout.exists():
+            shutil.copytree(store, checkout, symlinks=True)
+            for path in [checkout, *checkout.rglob("*")]:
+                if not path.is_symlink():
+                    path.chmod(path.stat().st_mode | 0o200)
+        subdirectory = package.get("subdirectory")
+        return checkout / subdirectory if subdirectory else checkout
 
     def lock_git_package(self, package: dict) -> Path:
         """Lock a git dependency and its submodules, and return its checkout,
@@ -352,10 +416,11 @@ class Locker:
         builds: list[tuple[Path, dict]] = []
         sdist_builds: list[tuple[str, str]] = []
         for package in self.packages():
-            if any(key in package for key in VCS_KEYS):
-                if "git" not in package:
-                    raise LockError(f"{package['name']}: only git is supported among version control systems")
+            if "git" in package:
                 builds.append((self.lock_git_package(package), {}))
+            elif any(key in package for key in VCS_KEYS):
+                vcs = next(key for key in VCS_KEYS if key in package)
+                builds.append((self.lock_other_vcs_package(package, vcs), {}))
             elif "path" in package:
                 path = (self.root / package["path"]).resolve()
                 if path.is_dir():
@@ -395,7 +460,7 @@ class Locker:
             "findLinks": sorted(find_links),
             "outputs": sorted(outputs, key=lambda o: o["name"]),
             "artifacts": [self.artifacts[k] for k in sorted(self.artifacts)],
-            "git": [self.git[k] for k in sorted(self.git)],
+            "checkouts": [self.checkouts[k] for k in sorted(self.checkouts)],
         }
 
     def close(self) -> None:

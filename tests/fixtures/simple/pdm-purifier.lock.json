@@ -71,8 +71,8 @@
       "version": "84.2.1"
     }
   ],
+  "checkouts": [],
   "findLinks": [],
-  "git": [],
   "inputsHash": "cf56bb80ac4443697c7a3c714a8ed60298da1a1df55c6c14aaca0e08404e21ba",
   "outputs": [
     {

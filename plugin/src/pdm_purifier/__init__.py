@@ -58,6 +58,67 @@ def _patch_sessions() -> None:
     base.BaseEnvironment._build_session = _build_session  # type: ignore[method-assign]
 
 
+def _patch_version_control() -> None:
+    """In serve mode, a Mercurial, Subversion or Bazaar dependency comes from
+    its locked checkout in the store. Git needs no patch: its locked
+    checkouts keep their .git directory, and git's `url.<path>.insteadOf`
+    sends the clone there."""
+    import os
+    import shutil
+    from pathlib import Path
+
+    from unearth.vcs.base import VersionControl
+
+    fetch = VersionControl.fetch
+    get_revision = VersionControl.get_revision
+    if getattr(fetch, "_pdm_purifier", False):
+        return
+    served: dict[str, str] = {}
+
+    def locked(name: str, url: str) -> dict | None:
+        if os.environ.get(transport.MODE_ENV) != "serve" or name == "git":
+            return None
+        for entry in transport._manifest().get("vcs", []):
+            if entry["vcs"] == name and entry["url"] == url:
+                return entry
+        raise RuntimeError(
+            f"pdm-purifier: {name} repository {url} is not in pdm-purifier.lock.json, and this PDM is offline. "
+            "Run `pdm-purifier lock`."
+        )
+
+    def patched_fetch(self: Any, link: Any, location: Path) -> None:
+        url, _, _ = self.get_url_and_rev_options(link)
+        entry = locked(self.name, url.secret if hasattr(url, "secret") else str(url))
+        if entry is None:
+            return fetch(self, link, location)
+        if location.exists():
+            shutil.rmtree(location)
+        shutil.copytree(entry["store"], location, symlinks=True)
+        for path in [location, *location.rglob("*")]:
+            if not path.is_symlink():
+                path.chmod(path.stat().st_mode | 0o200)
+        served[str(Path(location).resolve())] = entry["rev"]
+        return None
+
+    def patched_get_revision(self: Any, location: Path) -> str:
+        rev = served.get(str(Path(location).resolve()))
+        return rev if rev is not None else get_revision(self, location)
+
+    patched_fetch._pdm_purifier = True  # type: ignore[attr-defined]
+    VersionControl.fetch = patched_fetch  # type: ignore[method-assign]
+    for backend in VersionControl.__subclasses__():
+        if backend.name != "git" and "get_revision" in backend.__dict__:
+            original = backend.get_revision
+
+            def backend_get_revision(self: Any, location: Path, _original: Any = original) -> str:
+                rev = served.get(str(Path(location).resolve()))
+                return rev if rev is not None else _original(self, location)
+
+            backend.get_revision = backend_get_revision  # type: ignore[method-assign]
+    VersionControl.get_revision = patched_get_revision  # type: ignore[method-assign]
+
+
 def main(core: Any) -> None:
     _patch_sessions()
+    _patch_version_control()
     core.register_command(PurifierCommand, "purifier")

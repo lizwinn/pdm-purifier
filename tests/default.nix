@@ -33,6 +33,12 @@ let
 
   simple = final.buildPdmProject { src = fixture "simple"; };
   sources = final.buildPdmProject { src = fixture "sources"; };
+  vcs = final.buildPdmProject { src = fixture "vcs"; };
+  # The version pdm.lock pins for the Mercurial dependency.
+  vcsYoyoVersion =
+    (lib.findFirst (p: p.name == "yoyo-migrations") (throw "fixtures/vcs/pdm.lock has no yoyo-migrations")
+      (builtins.fromTOML (builtins.readFile ./fixtures/vcs/pdm.lock)).package
+    ).version;
 in
 {
   inherit cli;
@@ -63,6 +69,15 @@ in
     echo "$output"
     [ "$output" = "six 1.17.0, idna 3.10, docopt 0.6.2, xxh64 894c17e562117b4d, localpkg 0.2.0" ]
     [ "$(${lib.getExe sources.programs.localpkg})" = "localpkg 0.2.0" ]
+    touch $out
+  '';
+
+  # A Mercurial dependency, which the plugin copies from its locked checkout
+  # in place of a clone, built with its locked build requirements.
+  vcs-runs = runCommand "vcs-runs" { } ''
+    output=$(${lib.getExe vcs.programs.vcs})
+    echo "$output"
+    [ "$output" = "yoyo-migrations ${vcsYoyoVersion} (yoyo)" ]
     touch $out
   '';
 

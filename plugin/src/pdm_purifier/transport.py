@@ -122,8 +122,9 @@ class ServingTransport(httpx.BaseTransport):
             if entries is not None:
                 return self._index_page(request, segments[-1], entries)
         print(
-            f"pdm-purifier: {url} is not in pdm-purifier.lock.json. "
-            "Run `pdm-purifier lock` after changing dependencies.",
+            f"pdm-purifier: {url} is not in pdm-purifier.lock.json, and this PDM is offline. "
+            "Change dependencies with plain `pdm` (such as `pdm add`), "
+            "then run `pdm-purifier lock`.",
             file=sys.stderr,
         )
         return httpx.Response(404, request=request)

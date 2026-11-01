@@ -81,8 +81,7 @@
       "version": "1.17.0"
     }
   ],
-  "findLinks": [],
-  "git": [
+  "checkouts": [
     {
       "git": {
         "leaveDotGit": true,
@@ -117,6 +116,7 @@
       "path": "git/xxhash-5803a455336a"
     }
   ],
+  "findLinks": [],
   "inputsHash": "339e284d6c620ea6aadc75536d11c1f5fac73a7bf83af4d3f4b36d009ab63b0d",
   "outputs": [
     {
