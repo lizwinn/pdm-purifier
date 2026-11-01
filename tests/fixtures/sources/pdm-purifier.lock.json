@@ -1,0 +1,130 @@
+{
+  "artifacts": [
+    {
+      "file": "flit_core-3.12.0-py3-none-any.whl",
+      "hash": "sha256-56AwQGnqiVFy48e7cDKS6ZLF0VVd0SM6t7ViG1tp5iw=",
+      "mirrors": [],
+      "name": "flit-core",
+      "path": "flit_core-3.12.0-py3-none-any.whl",
+      "requiresPython": ">=3.6",
+      "url": "https://files.pythonhosted.org/packages/f2/65/b6ba90634c984a4fcc02c7e3afe523fef500c4980fec67cc27536ee50acf/flit_core-3.12.0-py3-none-any.whl",
+      "version": "3.12.0"
+    },
+    {
+      "file": "flit_core-3.12.0.tar.gz",
+      "hash": "sha256-GPYxANb5Q4XG7VenIHNEPhpxpKy0M5SRYV0PFtb/AbI=",
+      "mirrors": [],
+      "name": "flit-core",
+      "path": "flit_core-3.12.0.tar.gz",
+      "requiresPython": ">=3.6",
+      "url": "https://files.pythonhosted.org/packages/69/59/b6fc2188dfc7ea4f936cd12b49d707f66a1cb7a1d2c16172963534db741b/flit_core-3.12.0.tar.gz",
+      "version": "3.12.0"
+    },
+    {
+      "file": "idna-3.10.tar.gz",
+      "hash": "sha256-EvZcm0cKvabcNc+OY8xXSxxSsR3yyGAwrwrAmwGxPqk=",
+      "mirrors": [],
+      "name": "idna",
+      "path": "idna-3.10.tar.gz",
+      "requiresPython": null,
+      "url": "https://files.pythonhosted.org/packages/f1/70/7703c29685631f5a7590aa73f1f1d3fa9a380e654b86af429e0934a32f7d/idna-3.10.tar.gz",
+      "version": "3.10"
+    },
+    {
+      "file": "pdm_backend-2.5.0-py3-none-any.whl",
+      "hash": "sha256-W4dGtWehah/VBs5m7ijonUY3RSb1IjiqG5bMLAgkXGM=",
+      "mirrors": [],
+      "name": "pdm-backend",
+      "path": "pdm_backend-2.5.0-py3-none-any.whl",
+      "requiresPython": ">=3.9",
+      "url": "https://files.pythonhosted.org/packages/5e/a6/c743c589188f9e45e1a7c8f3e2e725f9b5df5decd72779fbfc1695b45866/pdm_backend-2.5.0-py3-none-any.whl",
+      "version": "2.5.0"
+    },
+    {
+      "file": "pdm_backend-2.5.0.tar.gz",
+      "hash": "sha256-eVO5lFY9MVF1XjNkudDP6BftDq7N8nyPd39BLSa82Yo=",
+      "mirrors": [],
+      "name": "pdm-backend",
+      "path": "pdm_backend-2.5.0.tar.gz",
+      "requiresPython": ">=3.9",
+      "url": "https://files.pythonhosted.org/packages/fc/d5/a82f533ed51f91a2183faf67a1fcb3b759615ffeca95d05b3e7648bf84bf/pdm_backend-2.5.0.tar.gz",
+      "version": "2.5.0"
+    },
+    {
+      "file": "setuptools-84.2.1-py3-none-any.whl",
+      "hash": "sha256-yhQLRdUyWpR4+IDjUUhPYv7xXzNkYuRJygwDyHPVicI=",
+      "mirrors": [],
+      "name": "setuptools",
+      "path": "setuptools-84.2.1-py3-none-any.whl",
+      "requiresPython": ">=3.10",
+      "url": "https://files.pythonhosted.org/packages/ef/55/6dc6d6bb953bdfc52519a0059592c52b6e3b8ad51cf8256dffceb55b0610/setuptools-84.2.1-py3-none-any.whl",
+      "version": "84.2.1"
+    },
+    {
+      "file": "setuptools-84.2.1.tar.gz",
+      "hash": "sha256-P/iztUkqCqZpYPRBk2Woa4TgEwcNQxPk1KaJT11k1rw=",
+      "mirrors": [],
+      "name": "setuptools",
+      "path": "setuptools-84.2.1.tar.gz",
+      "requiresPython": ">=3.10",
+      "url": "https://files.pythonhosted.org/packages/70/b3/c19426f783614d625699a4b247faf628ea9ab1db228674491767b417f9e1/setuptools-84.2.1.tar.gz",
+      "version": "84.2.1"
+    },
+    {
+      "file": "six-1.17.0-py2.py3-none-any.whl",
+      "hash": "sha256-RyHzke2QVB/drKtaz5R6oNPcfSey4ejtor6JcFhsMnQ=",
+      "mirrors": [],
+      "name": "six",
+      "path": "six-1.17.0-py2.py3-none-any.whl",
+      "requiresPython": null,
+      "url": "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl",
+      "version": "1.17.0"
+    }
+  ],
+  "findLinks": [],
+  "git": [
+    {
+      "git": {
+        "leaveDotGit": true,
+        "rev": "944641a7357376a43151bd4a3ca44f9c07c4d1ae",
+        "submodules": false,
+        "url": "https://github.com/docopt/docopt.git"
+      },
+      "hash": "sha256-JReCxSsUV491aDmPZKOzWr2SGyXjSyVVjkw+psYI6qA=",
+      "name": "docopt",
+      "path": "git/docopt-944641a73573"
+    }
+  ],
+  "inputsHash": "27fb8f2e359c82650c6438c093143147ade341900a41d0486c8d73c895cc659d",
+  "outputs": [
+    {
+      "name": "localpkg",
+      "path": "vendor/localpkg",
+      "pure": true,
+      "scripts": {
+        "console": [
+          "localpkg"
+        ],
+        "gui": []
+      },
+      "sdist": "localpkg-0.2.0.tar.gz",
+      "version": "0.2.0",
+      "wheel": "localpkg-0.2.0-py3-none-any.whl"
+    },
+    {
+      "name": "sources",
+      "path": ".",
+      "pure": true,
+      "scripts": {
+        "console": [
+          "sources"
+        ],
+        "gui": []
+      },
+      "sdist": "sources-0.1.0.tar.gz",
+      "version": "0.1.0",
+      "wheel": "sources-0.1.0-py3-none-any.whl"
+    }
+  ],
+  "version": 1
+}

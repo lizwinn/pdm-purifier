@@ -1,0 +1,12 @@
+[project]
+name = "localpkg"
+version = "0.2.0"
+description = "A local package of the sources fixture"
+requires-python = ">=3.11"
+
+[project.scripts]
+localpkg = "localpkg:main"
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"

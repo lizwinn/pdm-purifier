@@ -1,0 +1,22 @@
+[project]
+name = "sources"
+version = "0.1.0"
+description = "A pdm-purifier fixture: URL, git and local path dependencies"
+requires-python = ">=3.11"
+dependencies = [
+    # A wheel by URL.
+    "six @ https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl",
+    # An sdist by URL, built with flit_core.
+    "idna @ https://files.pythonhosted.org/packages/f1/70/7703c29685631f5a7590aa73f1f1d3fa9a380e654b86af429e0934a32f7d/idna-3.10.tar.gz",
+    # A git repository at a tag, built with setuptools.
+    "docopt @ git+https://github.com/docopt/docopt.git@0.6.2",
+    # A local package with a script of its own.
+    "localpkg @ file:///${PROJECT_ROOT}/vendor/localpkg",
+]
+
+[project.scripts]
+sources = "sources:main"
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
