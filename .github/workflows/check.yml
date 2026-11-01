@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: MIT
 #
-# Runs every check: the flake's checks (the fixture builds in the Nix
-# sandbox and the formatting), their evaluation for every system, the lock
-# run against the network, and the `pdm-purifier` command's offline and
-# publish verbs.
+# Runs every check, on x86_64-linux and aarch64-linux: the flake's checks
+# (the fixture builds in the Nix sandbox, the seven conformance-* checks of
+# the purifier contract that the sandbox can run, and the formatting), their
+# evaluation for every system, and a job named for each conformance check
+# that needs the network: conformance-relock, conformance-update and
+# conformance-offline.
 name: check
 
 on:
@@ -15,7 +17,7 @@ permissions:
   contents: read
 
 jobs:
-  check:
+  flake-check:
     strategy:
       fail-fast: false
       matrix:
@@ -30,7 +32,42 @@ jobs:
         run: nix flake check -L
       - name: Evaluation for every system
         run: nix flake check --all-systems --no-build
-      - name: Lock run
-        run: nix shell '.#cli' 'nixpkgs#python3' 'nixpkgs#gcc' 'nixpkgs#git' -c tests/lock-run.sh
-      - name: The pdm-purifier command
-        run: nix shell '.#cli' 'nixpkgs#python3' 'nixpkgs#gcc' 'nixpkgs#git' -c tests/interactive.sh
+
+  conformance-relock:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31
+      - name: Relock every fixture and compare
+        run: nix shell '.#cli' 'nixpkgs#python3' 'nixpkgs#gcc' 'nixpkgs#git' 'nixpkgs#mercurial' 'nixpkgs#subversion' 'nixpkgs#breezy' -c tests/lock-run.sh
+
+  conformance-update:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31
+      - name: Update the fixture that pins an old version
+        run: nix shell '.#cli' 'nixpkgs#python3' 'nixpkgs#git' -c tests/update.sh
+
+  conformance-offline:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31
+      - name: Prefetch, then work with no network, and publish to a local endpoint
+        run: nix shell '.#cli' 'nixpkgs#python3' 'nixpkgs#gcc' 'nixpkgs#git' 'nixpkgs#util-linux' -c tests/interactive.sh

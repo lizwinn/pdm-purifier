@@ -17,9 +17,16 @@ method and gives each client one transport for every URL
   page that lists only that project's locked files, with their URLs and
   hashes, so PDM resolves to the same files. A find-links location gets an
   HTML page of every locked file. Anything else gets a 404 and a message.
+- `off`: the plugin changes nothing.
 
-Without the variable the plugin changes nothing, so the PDM of the
-`pdm-with-plugin` package behaves like nixpkgs' PDM.
+Without the variable, the plugin serves a project that
+`pdm-purifier prefetch` prepared (`transport.activate`). Prefetch keeps the
+manifest in `.pdm-purifier/manifest` and the hash of pdm.lock and
+pyproject.toml it was made for in `.pdm-purifier/inputs`, beside the
+lockfile. When the hash still matches, the plugin sets serve mode and the
+git URL rewrites itself, so plain `pdm` works offline. When the project
+changed, PDM runs online with a warning. A project that was never prefetched
+is unchanged.
 
 The transport sits under the client, so it serves the project's own
 indexes, whatever URLs `pyproject.toml` gives them. PDM's configuration
@@ -30,42 +37,61 @@ configuration, not those of `pyproject.toml`.
 
 `pdm-purifier lock` runs `pdm purifier lock`, the plugin's command
 (`plugin/src/pdm_purifier/lock.py`), in record mode with an empty PDM
-cache. It writes `pdm-purifier.lock.json`:
+cache. It writes `pdm-purifier.lock.json`, which holds only what pdm.lock
+cannot record, plus its `version`, its `inputsHash` (SHA-256 over pdm.lock
+and pyproject.toml) and a `contentHash` (SHA-256 over the rest of the file):
 
-- `artifacts`: download entries of the shared purifier library
-  (`path`, `url`, `mirrors`, `hash`), with the project `name`, `version`,
-  `file` and `requiresPython` that the served index pages need. They are
-  every file of pdm.lock, with the URL that PDM's own finder reports for it
-  with platform filtering off, and every file of each version that a build
-  downloaded.
-- `checkouts`: version control entries of the shared library. A git entry
-  pins the plain checkout, and its `commitObject` holds the raw commit
-  object and the submodule commits (`gitlinks`) of the commit's tree. A
-  Mercurial, Subversion or Bazaar entry pins the checkout that nixpkgs'
-  `fetchhg`, `fetchsvn` or `fetchbzr` makes. The lock run gets that hash by
-  building the fetcher through the Nix daemon.
-- `outputs`: each local distribution (the project, and each package it
-  depends on by path) with its name, version, sdist and wheel file names,
-  and scripts, read from the build of it.
-- `inputsHash`: SHA-256 over pdm.lock and pyproject.toml. The Nix library
-  computes the same hash and refuses a stale lockfile.
+- `urls`: the URL of each file that pdm.lock lists without one, by file
+  name. PDM's own finder reports it with platform filtering off.
+- `buildRequirements`: the files that building a package installs, of
+  packages pdm.lock does not pin: every file of each version a build
+  downloaded, so a build on another platform finds its wheels. While the
+  lock run builds, the plugin offers PDM only pdm.lock's versions of a
+  project that pdm.lock pins (`lock.pinned_versions`), so a build
+  requirement that pdm.lock already has resolves to pdm.lock's file and is
+  not recorded again.
+- `checkouts`: for each version control repository, by URL, the Nix hash of
+  its checkout. A git entry also holds the raw commit object and the
+  submodule commits (`gitlinks`) of the commit's tree, and a git submodule,
+  which pdm.lock does not name, holds its revision. A Mercurial, Subversion
+  or Bazaar hash is that of the checkout that nixpkgs' `fetchhg`,
+  `fetchsvn` or `fetchbzr` makes. The lock run gets it by building the
+  fetcher through the Nix daemon.
+
+Nix derives everything else with `fromTOML` at evaluation: the names,
+versions, file names and SHA-256 hashes of the files from pdm.lock, the
+revisions of version control packages from pdm.lock, the local
+distributions and their scripts from pyproject.toml and the pyproject.toml
+of each path package, and the find-links locations from
+`[[tool.pdm.source]]`.
 
 The builds are what records the build requirements: the project (sdist,
 wheel and editable wheel), each local package, each version control
 dependency, and each registry or URL dependency with an sdist and no wheel
-for every platform. PDM downloads each build's requirements through the
-transport. For each version a build downloaded, the lock adds every file of
-that version from its index page, so a build on another platform finds its
-wheels.
+for every platform.
+
+## The lock in memory
+
+`nix/lib/lock.nix` reads pdm-purifier.lock.json and refuses it when it has
+another format version, lacks a field, has a `contentHash` that does not
+match, has an `inputsHash` that does not match pdm.lock and pyproject.toml,
+lacks the URL of a file pdm.lock lists without one, or lacks the checkout of
+a version control package. Each refusal names `pdm-purifier lock`.
+
+`nix/lib/read-lock.nix` (`lib.pdm-purifier.readLock`) turns the result into
+the shape of the purifier contract: `entries` (`nix/lib/fetches.nix`),
+`outputs`, and `problems`, which holds the refusal. The builder passes it to
+`checkLock` of the shared library, which fails evaluation with the
+problems, and takes the entries for its system with `entriesFor`.
 
 ## The Nix build
 
-`nix/lib/build-pdm-project.nix` reads both lockfiles. For each locked
-version it takes the wheels that install with the build's Python on the
-build's system, or else the sdist. The shared purifier library
-(github:nix-purifiers/purifier) decides which wheels install, from the
-tags in their file names, and fetches every entry. The builder writes a
-manifest of all of them.
+`nix/lib/build-pdm-project.nix` takes, for each locked version, the wheels
+that install with the build's Python on the build's system, or else the
+sdist. The shared purifier library (github:nix-purifiers/purifier) decides
+which wheels install, from the tags in their file names, and fetches every
+entry, with `fetchers` passed through. The builder writes a manifest of all
+of them. Its `fetches` attribute is the entries of the lock.
 
 Git dependencies are cloned by PDM, so their entries ask the library for a
 `.git` directory. The library rebuilds it from the entry's commit object
@@ -78,12 +104,15 @@ writes a `PKG-INFO` with the locked version, which setuptools-scm reads
 when there is no version control metadata.
 
 PDM then runs in serve mode: `pdm sync --prod --no-editable` into a
-virtual environment for `environment`, and `pdm build` for each
-`packages.<name>`.
+virtual environment for `environment`, `pdm build` for each
+`packages.<name>`, and the project's test command with every group
+installed for `tests`.
 
 ## The command
 
-`pdm-purifier pdm` builds the manifest with Nix (`nix/lib/cli.nix`), keeps
-it alive with a GC root in `.pdm-purifier/`, and runs PDM in serve mode.
-`publish` builds a distribution with Nix and runs `pdm publish --no-build`
-on what Nix built.
+`pdm-purifier lock` and `update` run the plugin's lock command online and
+write the lockfile at `--lockfile`, `PDM_PURIFIER_LOCKFILE`, or next to
+pdm.lock. `prefetch` builds the manifest with Nix (`nix/lib/cli.nix`),
+keeps it alive with a GC root in `.pdm-purifier/` beside the lockfile, and
+installs every group with `pdm sync`. `publish` builds a distribution with
+Nix and runs `pdm publish --no-build` on what Nix built.
