@@ -6,6 +6,8 @@ requires-python = ">=3.11"
 dependencies = [
     # A Mercurial repository at a revision.
     "yoyo-migrations @ hg+https://hg.sr.ht/~olly/yoyo@6d255163e92b",
+    # A Subversion repository at a revision.
+    "docutils @ svn+https://svn.code.sf.net/p/docutils/code/trunk/docutils@10409",
 ]
 
 [project.scripts]

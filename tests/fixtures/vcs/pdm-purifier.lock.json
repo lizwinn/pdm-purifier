@@ -1,6 +1,26 @@
 {
   "artifacts": [
     {
+      "file": "flit_core-3.12.0-py3-none-any.whl",
+      "hash": "sha256-56AwQGnqiVFy48e7cDKS6ZLF0VVd0SM6t7ViG1tp5iw=",
+      "mirrors": [],
+      "name": "flit-core",
+      "path": "flit_core-3.12.0-py3-none-any.whl",
+      "requiresPython": ">=3.6",
+      "url": "https://files.pythonhosted.org/packages/f2/65/b6ba90634c984a4fcc02c7e3afe523fef500c4980fec67cc27536ee50acf/flit_core-3.12.0-py3-none-any.whl",
+      "version": "3.12.0"
+    },
+    {
+      "file": "flit_core-3.12.0.tar.gz",
+      "hash": "sha256-GPYxANb5Q4XG7VenIHNEPhpxpKy0M5SRYV0PFtb/AbI=",
+      "mirrors": [],
+      "name": "flit-core",
+      "path": "flit_core-3.12.0.tar.gz",
+      "requiresPython": ">=3.6",
+      "url": "https://files.pythonhosted.org/packages/69/59/b6fc2188dfc7ea4f936cd12b49d707f66a1cb7a1d2c16172963534db741b/flit_core-3.12.0.tar.gz",
+      "version": "3.12.0"
+    },
+    {
       "file": "importlib_metadata-10.1.0-py3-none-any.whl",
       "hash": "sha256-z0XOZqkpxk6ZQYWoCcBIQNBQHbF+ZjgQ2ZPQ9IKSZcc=",
       "mirrors": [],
@@ -130,10 +150,21 @@
       },
       "name": "yoyo-migrations",
       "path": "hg/yoyo-migrations-6d255163e92b"
+    },
+    {
+      "hash": "sha256-gWsXllpPwyUktWaoexChFllgT6/ewg3bL6YQdSkVVMg=",
+      "name": "docutils",
+      "path": "svn/docutils-10409",
+      "svn": {
+        "ignoreExternals": false,
+        "ignoreKeywords": false,
+        "rev": "10409",
+        "url": "https://svn.code.sf.net/p/docutils/code/trunk/docutils"
+      }
     }
   ],
   "findLinks": [],
-  "inputsHash": "2d5b13677cd9d044d3cfebfe20ed7eca3e173202d2ba6c145e9b81f39afd9e4f",
+  "inputsHash": "8d21dfacc44a5f96f432e3881fb0fd9bf09e40ab1d6a58978a39ee83aa311a70",
   "outputs": [
     {
       "name": "vcs",

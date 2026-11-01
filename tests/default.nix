@@ -34,9 +34,10 @@ let
   simple = final.buildPdmProject { src = fixture "simple"; };
   sources = final.buildPdmProject { src = fixture "sources"; };
   vcs = final.buildPdmProject { src = fixture "vcs"; };
-  # The version pdm.lock pins for the Mercurial dependency.
-  vcsYoyoVersion =
-    (lib.findFirst (p: p.name == "yoyo-migrations") (throw "fixtures/vcs/pdm.lock has no yoyo-migrations")
+  # The version the vcs fixture's pdm.lock pins for a package.
+  vcsVersion =
+    name:
+    (lib.findFirst (p: p.name == name) (throw "fixtures/vcs/pdm.lock has no ${name}")
       (builtins.fromTOML (builtins.readFile ./fixtures/vcs/pdm.lock)).package
     ).version;
 in
@@ -72,12 +73,13 @@ in
     touch $out
   '';
 
-  # A Mercurial dependency, which the plugin copies from its locked checkout
-  # in place of a clone, built with its locked build requirements.
+  # A Mercurial and a Subversion dependency, which the plugin copies from
+  # their locked checkouts in place of a clone, built with their locked
+  # build requirements.
   vcs-runs = runCommand "vcs-runs" { } ''
     output=$(${lib.getExe vcs.programs.vcs})
     echo "$output"
-    [ "$output" = "yoyo-migrations ${vcsYoyoVersion} (yoyo)" ]
+    [ "$output" = "yoyo-migrations ${vcsVersion "yoyo-migrations"} (yoyo), docutils ${vcsVersion "docutils"} (docutils)" ]
     touch $out
   '';
 

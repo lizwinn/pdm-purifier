@@ -5,10 +5,20 @@
 groups = ["default"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:141fd2f8cd52e4707291776e58fdc58a4da5b803a42993f30e530b3e02866ac0"
+content_hash = "sha256:c43448dfcce974a66bea05acaef99edd2e3ab478e9fc3ba5fd61dbf0cb424d00"
 
 [[metadata.targets]]
 requires_python = ">=3.11"
+
+[[package]]
+name = "docutils"
+version = "1.0b1.dev0"
+requires_python = ">=3.9"
+svn = "https://svn.code.sf.net/p/docutils/code/trunk/docutils"
+ref = "10409"
+revision = "10409"
+summary = "Docutils -- Python Documentation Utilities"
+groups = ["default"]
 
 [[package]]
 name = "importlib-metadata"
