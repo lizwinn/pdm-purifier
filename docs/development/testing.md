@@ -13,6 +13,23 @@ committed lockfiles in the sandbox, with no network, and runs it
 - `vcs`: yoyo-migrations from Mercurial, docutils from Subversion, and
   python-dateutil from Bazaar.
 
+The flake check also runs unit tests and negative tests:
+
+- `unit` runs the unit tests in `tests/unit/`. They cover the transports
+  (serving locked files, index and find-links pages, refusing everything
+  else, and recording distribution files), the helpers of the lock run
+  (file names, hashes, scripts and `PKG-INFO`), and the command (stale and
+  malformed lockfiles, and the source root of local packages).
+- `refuses-broken-lockfiles` checks that a stale lockfile, one of another
+  format version, one that is not an object, and a missing one each fail
+  when Nix evaluates the build.
+- `refuses-missing-entry` checks that a lockfile without a file PDM needs
+  fails the build with pdm-purifier's message.
+- `refuses-tampered-hash` checks that a pdm.lock with an edited file hash
+  fails the build, because PDM refuses the file the plugin serves. Its
+  fixture, `tests/negative/tampered-hash`, comes from
+  `tests/make-negative-fixtures.py`.
+
 The flake check also checks the formatting of the Nix files with nixfmt.
 `nix flake check --all-systems --no-build` evaluates the checks for
 aarch64-linux too.
