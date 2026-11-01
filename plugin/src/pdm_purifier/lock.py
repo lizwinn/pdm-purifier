@@ -232,23 +232,45 @@ class Locker:
         return result.stdout
 
     def prefetch(self, url: str, rev: str) -> str:
+        """The NAR hash of the plain checkout, without .git, which fetchgit
+        reproduces exactly."""
         out = subprocess.run(
-            ["nix-prefetch-git", "--quiet", "--leave-dotGit", "--url", url, "--rev", rev],
+            ["nix-prefetch-git", "--quiet", "--url", url, "--rev", rev],
             check=True,
             capture_output=True,
             text=True,
         ).stdout
         return json.loads(out)["hash"]
 
-    def add_git(self, name: str, url: str, rev: str) -> None:
+    def add_git(self, name: str, url: str, rev: str, repository: Path) -> None:
+        """Lock the git checkout of ``url`` at ``rev``. ``repository`` is a
+        clone that has the commit, from which the entry takes the raw commit
+        object and the submodule commits (gitlinks) of its tree. The Nix
+        build rebuilds the .git directory from them and the plain checkout,
+        because a hash over a .git directory is not reproducible."""
         if url in self.checkouts:
             if self.checkouts[url]["git"]["rev"] != rev:
                 raise LockError(f"{url} is locked at two revisions; pdm-purifier keeps one per URL")
             return
+        commit = subprocess.run(
+            ["git", "cat-file", "commit", rev], cwd=repository, check=True, capture_output=True
+        ).stdout
+        gitlinks = []
+        for line in self.git_command("ls-tree", "-r", "-z", rev, cwd=repository).split("\0"):
+            if line.startswith("160000 commit "):
+                meta, path = line.split("\t", 1)
+                gitlinks.append({"path": path, "rev": meta.split()[2]})
         self.checkouts[url] = {
             "name": name,
             "path": f"git/{normalize_name(name)}-{rev[:12]}",
-            "git": {"url": url, "rev": rev, "submodules": False, "leaveDotGit": True},
+            "git": {
+                "url": url,
+                "rev": rev,
+                "submodules": False,
+                "leaveDotGit": True,
+                "commitObject": base64.b64encode(commit).decode(),
+            },
+            "gitlinks": gitlinks,
             "hash": self.prefetch(url, rev),
         }
 
@@ -330,19 +352,20 @@ class Locker:
             self.git_command("reset", "--hard", "--quiet", rev, cwd=checkout)
             if (checkout / ".gitmodules").exists():
                 self.git_command("submodule", "update", "--init", "--recursive", "--quiet", cwd=checkout)
-        self.add_git(name, url, rev)
+        self.add_git(name, url, rev, checkout)
         if (checkout / ".gitmodules").exists():
             listing = self.git_command(
                 "submodule",
                 "foreach",
                 "--recursive",
                 "--quiet",
-                'echo "$(git config remote.origin.url) $sha1 $name"',
+                'echo "$(git config remote.origin.url) $sha1 $displaypath"',
                 cwd=checkout,
             )
             for line in listing.splitlines():
-                sub_url, sub_rev, sub_name = line.split(" ", 2)
-                self.add_git(f"{name}-{sub_name}", sub_url, sub_rev)
+                sub_url, sub_rev, sub_path = line.split(" ", 2)
+                sub_name = f"{name}-{sub_path.replace('/', '-')}"
+                self.add_git(sub_name, sub_url, sub_rev, checkout / sub_path)
         subdirectory = package.get("subdirectory")
         return checkout / subdirectory if subdirectory else checkout
 

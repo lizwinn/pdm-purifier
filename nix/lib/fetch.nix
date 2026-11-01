@@ -16,7 +16,7 @@
 # A file entry of the shared purifier library: `url`, the `mirrors` that
 # serve the same bytes, and the SRI `hash` of the file. Nix's built-in
 # fetcher downloads from `url` alone; the mirrors are tried by a `fetchurl`
-# passed in. The entries uv-purifier writes have no mirrors, because an
+# passed in. The entries pdm-purifier writes have no mirrors, because an
 # index such as PyPI keeps a file at its URL.
 {
   name,

@@ -118,16 +118,72 @@ let
     }
   ) chosen;
 
+  # The plain checkout of a git entry, without .git, whose hash fetchgit
+  # reproduces.
+  plainGitCheckout =
+    entry:
+    fetchgit {
+      inherit (entry.git) url rev;
+      leaveDotGit = false;
+      fetchSubmodules = entry.git.submodules;
+      inherit (entry) hash;
+    };
+
+  # A git checkout with a .git directory that holds the locked commit, for
+  # PDM to clone from. A hash over a .git directory that fetchgit leaves is
+  # not reproducible, so the entry pins the plain checkout and carries the
+  # raw commit object, and this derivation rebuilds the repository: it
+  # writes the checkout's tree, with each submodule commit (gitlink) of the
+  # entry, then the commit object, and marks the commit as the boundary of a
+  # shallow clone, so git needs none of its parents. It fails unless the
+  # commit's ID is the locked revision and its tree is the tree it wrote.
+  gitRepository =
+    entry:
+    runCommand "${storeName entry.name}-git-${builtins.substring 0 12 entry.git.rev}"
+      {
+        nativeBuildInputs = [ git ];
+        checkout = plainGitCheckout entry;
+        inherit (entry.git) rev commitObject;
+        gitlinks = lib.concatMapStrings (link: "${link.rev} ${link.path}\n") (entry.gitlinks or [ ]);
+        passAsFile = [ "gitlinks" ];
+      }
+      ''
+        cp -r "$checkout" "$out"
+        chmod -R u+w "$out"
+        cd "$out"
+        export HOME="$TMPDIR"
+        git init --quiet
+        git config core.autocrlf false
+        git add --all --force
+        while read -r sha path; do
+          [ -n "$sha" ] || continue
+          rmdir "$path" 2>/dev/null || true
+          git update-index --add --cacheinfo "160000,$sha,$path"
+        done < "$gitlinksPath"
+        tree=$(git write-tree)
+        printf '%s' "$commitObject" | base64 -d > "$TMPDIR/commit"
+        written=$(git hash-object -t commit -w --literally "$TMPDIR/commit")
+        if [ "$written" != "$rev" ]; then
+          echo "pdm-purifier: the commit object of ${entry.git.url} hashes to $written, not $rev" >&2
+          exit 1
+        fi
+        if [ "$(git cat-file commit "$rev" | head -n 1)" != "tree $tree" ]; then
+          echo "pdm-purifier: the checkout of ${entry.git.url} does not have the tree of $rev" >&2
+          exit 1
+        fi
+        echo "$rev" > .git/shallow
+        git update-ref refs/heads/main "$rev"
+        git symbolic-ref HEAD refs/heads/main
+        git read-tree "$rev"
+        for d in $(cut -d' ' -f2- < "$gitlinksPath"); do mkdir -p "$d"; done
+      '';
+
   # A version control checkout of the lock, fetched with the nixpkgs fetcher
   # of its kind, as the shared purifier library's entry kinds describe.
   fetchCheckout =
     entry:
     if entry ? git then
-      fetchgit {
-        inherit (entry.git) url rev leaveDotGit;
-        fetchSubmodules = entry.git.submodules;
-        inherit (entry) hash;
-      }
+      if entry.git.leaveDotGit then gitRepository entry else plainGitCheckout entry
     else if entry ? hg then
       fetchhg {
         inherit (entry.hg) url rev;

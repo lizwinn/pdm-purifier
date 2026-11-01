@@ -3,7 +3,7 @@
 # Whether a wheel installs with a given Python on a given Linux system, read
 # from the compatibility tags in its file name (PEP 425 and PEP 600). The
 # build uses this to choose which locked files to fetch for a system: the
-# wheels that install, and the sdist of a package with no such wheel. uv
+# wheels that install, and the sdist of a package with no such wheel. PDM
 # makes the final choice among the fetched wheels when it installs.
 {
   # The Python version, such as "3.14".
