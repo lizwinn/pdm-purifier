@@ -62,14 +62,15 @@ wheels.
 
 `nix/lib/build-pdm-project.nix` reads both lockfiles. For each locked
 version it takes the wheels that install with the build's Python on the
-build's system (`nix/lib/wheels.nix`, from the file names' tags), or else
-the sdist, and fetches them (`nix/lib/fetch.nix`). It fetches each checkout
-and writes a manifest of all of them.
+build's system, or else the sdist. The shared purifier library
+(github:nix-purifiers/purifier) decides which wheels install, from the
+tags in their file names, and fetches every entry. The builder writes a
+manifest of all of them.
 
-Git dependencies are cloned by PDM, so the build rebuilds each git
-repository: it writes the checkout's tree with the gitlinks, writes the
-commit object, checks that the commit has the locked ID and that tree, and
-marks the commit as the boundary of a shallow clone. Git's
+Git dependencies are cloned by PDM, so their entries ask the library for a
+`.git` directory. The library rebuilds it from the entry's commit object
+and gitlinks, and checks that the commit has the locked ID and the tree
+of the checkout. Git's
 `url.<path>.insteadOf` sends each clone, and each submodule clone, to its
 rebuilt repository. The plugin copies a Mercurial, Subversion or Bazaar
 checkout in place of unearth's clone, reports its locked revision, and

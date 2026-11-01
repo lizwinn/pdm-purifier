@@ -81,8 +81,9 @@ no import from derivation.
   `requires-python`.
 - `nativeBuildInputs` and `buildInputs`, for the tools and system libraries
   that building a C extension needs.
-- `fetchurl`, a replacement fetcher for credentials or mirrors
-  (`nix/lib/fetch.nix`).
+- `fetchurl`, a replacement for nixpkgs' `fetchurl`, for credentials or
+  mirrors. The shared [purifier](https://github.com/nix-purifiers/purifier)
+  library calls it with the arguments it passes to nixpkgs' `fetchurl`.
 
 ## PDM offline
 
