@@ -31,14 +31,26 @@
 #   local packages, from `environment`, for `nix run`.
 # - `manifest`: the manifest that the plugin serves PDM from, which
 #   `pdm-purifier prefetch` keeps in .pdm-purifier/manifest.
+#
+# The flake's `overlays.default` adds this file to the package set as
+# `buildPdmProject`, through `callPackage`. It takes the packages it needs by
+# name, and `buildPdmProject.override` replaces any of them.
 {
   lib,
+  pkgs,
+  stdenv,
+  runCommand,
+  writeText,
+  git,
+  glibc,
+  python3,
+  # The scope of this flake's packages: `pdm-with-plugin` is the PDM that
+  # runs every build.
+  pdm-purifier,
   # The shared purifier library (github:nix-purifiers/purifier).
   purifier,
 }:
 {
-  # The package set to build with.
-  pkgs,
   # The directory that holds everything the project reads: the project
   # itself and the local packages it depends on by path.
   src,
@@ -51,7 +63,7 @@
   projectDir ? ".",
   # The Python the project builds and runs with. It must satisfy the
   # project's requires-python.
-  python ? pkgs.python3,
+  python ? python3,
   # The pdm.lock groups that `environment` installs.
   groups ? [ "default" ],
   # The command `tests` runs in the project directory. By default it is
@@ -71,8 +83,6 @@
   # `PDM_BUILD_SCM_VERSION`, which a project that takes its version from git
   # needs because `src` has no .git directory.
   env ? { },
-  # PDM with the pdm-purifier plugin. By default it is built from `pkgs`.
-  pdm ? null,
 }:
 let
   inherit (builtins)
@@ -84,21 +94,7 @@ let
     listToAttrs
     map
     ;
-  inherit (pkgs)
-    stdenv
-    runCommand
-    writeText
-    git
-    glibc
-    ;
-
-  pdmWithPlugin =
-    if pdm != null then
-      pdm
-    else
-      pkgs.callPackage ../../pkgs/pdm-with-plugin {
-        plugin = pkgs.callPackage ../../pkgs/plugin { };
-      };
+  pdmWithPlugin = pdm-purifier.pdm-with-plugin;
 
   originalRoot = if projectDir == "." then src else src + "/${projectDir}";
   # The lock in memory (read-lock.nix), which checkLock of the shared

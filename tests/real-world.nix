@@ -8,9 +8,11 @@
 { repo, project }:
 let
   flake = builtins.getFlake "path:${repo}";
-  pkgs = flake.inputs.nixpkgs.legacyPackages.${builtins.currentSystem};
+  pkgs = import flake.inputs.nixpkgs {
+    system = builtins.currentSystem;
+    overlays = [ flake.overlays.default ];
+  };
 in
-flake.lib.pdm-purifier.buildPdmProject {
-  inherit pkgs;
+pkgs.buildPdmProject {
   src = /. + project;
 }

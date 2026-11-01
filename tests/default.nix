@@ -10,9 +10,8 @@
 # so it is a CI job of that name (lock-run.sh) and has no check here.
 {
   pkgs,
-  # lib.pdm-purifier.buildPdmProject and lib.pdm-purifier.readLock of this
-  # flake.
-  buildPdmProject,
+  # overlays.default and lib.pdm-purifier.readLock of this flake.
+  overlay,
   readLock,
   cli,
 }:
@@ -43,7 +42,7 @@ let
     };
   fixture = fixtureWithout [ ];
 
-  build = args: buildPdmProject ({ inherit pkgs; } // args);
+  build = (pkgs.extend overlay).buildPdmProject;
 
   simple = build { src = fixture "simple"; };
   sources = build { src = fixture "sources"; };
@@ -213,7 +212,7 @@ in
       touch $out
     '';
 
-  # The everyday loop of a prefetched project, with no network: the
+  # The development loop of a prefetched project, with no network: the
   # project has the manifest that `pdm-purifier prefetch` keeps, and plain
   # `pdm` (with the plugin, and no PDM_PURIFIER_MODE) installs every
   # group, runs the project and its tests, and builds it.

@@ -20,7 +20,7 @@ the pdm-purifier plugin, and builds with the Nix library and nixpkgs it was
 built with (PDM_PURIFIER_NIX_LIB, PDM_PURIFIER_NIXPKGS, PDM_PURIFIER_PDM).
 
 After `pdm-purifier prefetch`, the plain `pdm` of the same package serves
-every download from the locked files, so the everyday loop works offline.
+every download from the locked files, so the development loop works offline.
 """
 
 from __future__ import annotations

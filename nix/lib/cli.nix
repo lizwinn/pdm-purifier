@@ -56,16 +56,15 @@ let
         inherit pythonVersion;
       };
 
-  buildPdmProject = import ./build-pdm-project.nix {
-    inherit (pkgs) lib;
+  buildPdmProject = pkgs.callPackage ./build-pdm-project.nix {
     purifier = import (builtins.storePath purifier) { inherit (pkgs) lib; };
+    pdm-purifier.pdm-with-plugin = builtins.storePath pdm;
   };
 
   project = buildPdmProject {
-    inherit pkgs projectDir;
+    inherit projectDir;
     src = source;
     lockFile = /. + lockFile;
-    pdm = builtins.storePath pdm;
     python = if package == null then python else pkgs.python3;
   };
 in

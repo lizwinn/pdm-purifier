@@ -11,8 +11,8 @@ in
   # nixpkgs' PDM with the plugin installed. buildPdmProject and the CLI run
   # it.
   inherit pdm-with-plugin;
-  # The `pdm-purifier` command (`lock`, `prefetch` and `publish`), and the
-  # `pdm` with the plugin that the everyday loop runs. The default package
+  # The `pdm-purifier` command (`lock`, `update`, `prefetch` and `publish`), and the
+  # `pdm` with the plugin that the development loop runs. The default package
   # overlay gives it the source of the shared purifier library.
   cli = callPackage ./cli {
     inherit pdm-with-plugin;

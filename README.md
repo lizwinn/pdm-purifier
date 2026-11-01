@@ -11,7 +11,7 @@ pdm.lock pins every package with the names and hashes of its files, but not
 their URLs, and it pins nothing that PDM installs to build a package.
 pdm-purifier adds a PDM plugin and a file, `pdm-purifier.lock.json`, that
 hold only those two things: the URLs that pdm.lock leaves out, and the
-files that building a package installs. Everything else Nix reads from
+files that building a package installs. Nix reads everything else from
 pdm.lock and pyproject.toml.
 
 ## Quickstart
@@ -23,8 +23,9 @@ nix run github:nix-purifiers/pdm-purifier -- lock
 nix run github:nix-purifiers/pdm-purifier -- prefetch
 ```
 
-Commit `pdm-purifier.lock.json`. Then build the project with Nix, in the
-project's `flake.nix`:
+Commit `pdm-purifier.lock.json`. Then build the project with Nix. The
+flake's `overlays.default` adds `buildPdmProject` to the package set, as
+nixpkgs keeps its own builders there:
 
 ```nix
 {
@@ -34,11 +35,11 @@ project's `flake.nix`:
   outputs = { nixpkgs, pdm-purifier, ... }:
     let
       system = "x86_64-linux";
-      pkgs = nixpkgs.legacyPackages.${system};
-      project = pdm-purifier.lib.pdm-purifier.buildPdmProject {
-        inherit pkgs;
-        src = ./.;
+      pkgs = import nixpkgs {
+        inherit system;
+        overlays = [ pdm-purifier.overlays.default ];
       };
+      project = pkgs.buildPdmProject { src = ./.; };
     in
     {
       packages.${system} = {
@@ -53,8 +54,20 @@ project's `flake.nix`:
 }
 ```
 
-`buildPdmProject` takes `pkgs`, `src` and `fetchers` as every purifier's
-builder does. It returns:
+A package in an overlay takes the builder by name, like any other builder:
+
+```nix
+# package.nix
+{ buildPdmProject }:
+(buildPdmProject { src = ./.; }).packages.app
+```
+
+`buildPdmProject` is a package for `callPackage`. It takes the packages it
+needs by name, and `buildPdmProject.override` replaces any of them. Its own
+arguments are `src` and `lockFile`, which defaults to
+`pdm-purifier.lock.json` in the project, and `fetchers`, whose `fetchurl`
+takes a company mirror or credentials and works the same way in every
+purifier. It returns:
 
 - `packages.<name>` for the project and for each local package it depends
   on by path: what `pdm build` makes, with the attributes `sdist` and
@@ -71,19 +84,17 @@ builder does. It returns:
   groups in `groups` (by default `[ "default" ]`) installed, and
   `programs.<script>` for each console and GUI script, for `nix run`.
 
-It also takes `projectDir` (the project inside `src`, when `src` also holds
-local packages outside it), `python`, `nativeBuildInputs` and
-`buildInputs` (for a C extension's tools and libraries), `testCommand`,
-and `lockFile`. The argument `env` sets environment variables for the
-builds. A project that takes its version from git needs it, because the
-source of a flake has no `.git` directory, and sets
-`PDM_BUILD_SCM_VERSION`. A company mirror or credentials go into
-`fetchers.fetchurl`, which works the same way in every purifier.
+The builder also takes `projectDir` (the project inside `src`, when `src`
+also holds local packages outside it), `python`, `nativeBuildInputs` and
+`buildInputs` (for a C extension's tools and libraries), and `testCommand`.
+The argument `env` sets environment variables for the builds. A project that
+takes its version from git sets `PDM_BUILD_SCM_VERSION` in it, because the
+source of a flake has no `.git` directory.
 
 `lib.pdm-purifier.readLock { src, lockFile }` reads both lockfiles into the
 shape that every purifier gives, with `entries`, `outputs` and `problems`.
 
-## Everyday loop
+## Development loop
 
 After `prefetch`, the loop goes through plain `pdm`:
 
@@ -108,7 +119,7 @@ nix run github:nix-purifiers/pdm-purifier -- lock
 nix run github:nix-purifiers/pdm-purifier -- prefetch
 ```
 
-`lock` keeps pdm.lock as it is. It writes pdm.lock only where it is
+`lock` keeps the versions in pdm.lock. It writes pdm.lock where it is
 missing, and brings it up to date with `pdm lock --update-reuse` where
 pyproject.toml no longer matches it. To move versions, run
 `pdm-purifier update`, or `pdm-purifier update <package>...` for some
@@ -122,7 +133,10 @@ packages. It runs `pdm update --no-sync` and then relocks.
 nix run github:nix-purifiers/pdm-purifier -- publish -- --username __token__ --password "$PYPI_TOKEN"
 ```
 
-## Offline work
+Every command takes `--lockfile <path>`, or reads `PDM_PURIFIER_LOCKFILE`,
+for a lockfile that lives outside the project.
+
+## Working offline
 
 `prefetch` builds the project's manifest with Nix, which fetches every
 locked file that installs for the current system and Python. It keeps them
@@ -135,13 +149,12 @@ build` and the editor work with the network cut off.
 
 `prefetch` installs the project into `.venv`, with the development groups.
 Point the editor's Python interpreter at `.venv/bin/python`, and its
-language server finds every dependency there with no network. A language
-server that downloads its own server, such as a Pyright from npm, is not
-covered: install it from Nix.
+language server finds every dependency there with no network. Install the
+language server itself from Nix.
 
-## Errors and fixes
+## Troubleshooting
 
-Each refusal names the command that fixes it.
+Each message names the command that fixes it.
 
 | Message | Cause | Fix |
 | --- | --- | --- |
@@ -152,9 +165,9 @@ Each refusal names the command that fixes it.
 | `<url> is not in pdm-purifier.lock.json` | PDM asked for a file that is not locked. | Run the command with `PDM_PURIFIER_MODE=off`, then `lock` and `prefetch` |
 | `pdm.lock or pyproject.toml changed since pdm-purifier prefetch` | The project changed since the last prefetch, so PDM runs online. | `pdm-purifier lock`, then `pdm-purifier prefetch` |
 
-## Sources supported and refused
+## Supported language repositories
 
-Supported, as pdm.lock records them:
+pdm-purifier builds every source pdm.lock records:
 
 - packages from the project's indexes and find-links locations, for every
   platform pdm.lock covers;
@@ -168,16 +181,14 @@ or `.bzr` directory. The plugin writes a `PKG-INFO` with the version
 pdm.lock pins into such a checkout, so a build that takes its version from
 version control history (setuptools-scm, hatch-vcs) gets that version.
 
-Refused:
-
-- a pdm.lock with a hash other than SHA-256, which is not PDM's default;
-- a system other than Linux on x86_64 or aarch64, where the wheel tags are
-  checked against the package set's glibc.
+The build runs on Linux for x86_64 and aarch64, where the wheel tags are
+checked against the package set's glibc. pdm.lock must use SHA-256 file
+hashes, which is PDM's default.
 
 The lock run builds the project, its local packages, its version control
-dependencies and each dependency that has only an sdist for some platform.
-A dependency with a C extension needs a C compiler on PATH, as it does for
-`pdm install`.
+dependencies, and each dependency that has no wheel for Linux on x86_64 or
+on aarch64 with the lock run's Python. A dependency with a C extension
+needs a C compiler on PATH, as it does for `pdm install`.
 
 ## Examples
 
@@ -203,9 +214,11 @@ project with `--lockfile`. Then add a `flake.nix` next to `pyproject.toml`:
   outputs = { nixpkgs, pdm-purifier, ... }:
     let
       system = "x86_64-linux";
-      pkgs = nixpkgs.legacyPackages.${system};
-      project = pdm-purifier.lib.pdm-purifier.buildPdmProject {
-        inherit pkgs;
+      pkgs = import nixpkgs {
+        inherit system;
+        overlays = [ pdm-purifier.overlays.default ];
+      };
+      project = pkgs.buildPdmProject {
         src = ./.;
         # PDM takes its version from git, and the flake's source has no
         # .git directory.
@@ -230,10 +243,6 @@ wheel:
 nix run . -- --version
 nix build .#dist
 ```
-
-For a project with a C extension, such as one that depends on a package
-with no wheel for your system, `buildPdmProject` takes `nativeBuildInputs`
-and `buildInputs` for the compiler's tools and libraries.
 
 ## Credits
 

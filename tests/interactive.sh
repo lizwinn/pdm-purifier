@@ -12,7 +12,7 @@
 # - a project changed since the prefetch runs PDM the usual way, with a
 #   warning;
 # - with the lockfile kept outside the project, named by
-#   PDM_PURIFIER_LOCKFILE, prefetch and the everyday loop work the same;
+#   PDM_PURIFIER_LOCKFILE, prefetch and the development loop work the same;
 # - `pdm-purifier publish` uploads exactly the sdist and wheel Nix built, to
 #   a local upload endpoint (tests/upload_server.py).
 #

@@ -53,7 +53,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
       --set PDM_PURIFIER_NIXPKGS ${path} \
       --set PDM_PURIFIER_PDM ${pdm} \
       --set PDM_PURIFIER_LIBRARY ${purifierSource}
-    # The everyday loop runs this PDM, whose plugin serves a prefetched
+    # The development loop runs this PDM, whose plugin serves a prefetched
     # project from the locked files.
     ln -s ${pdm}/bin/pdm $out/bin/pdm
     runHook postInstall
