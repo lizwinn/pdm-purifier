@@ -26,7 +26,9 @@ let
     readFile (root + "/pdm.lock") + readFile (root + "/pyproject.toml")
   );
 in
-if (data.version or null) != version then
+if !(builtins.isAttrs data) then
+  throw "pdm-purifier: pdm-purifier.lock.json is not a pdm-purifier lockfile. Run `pdm-purifier lock`."
+else if (data.version or null) != version then
   throw "pdm-purifier: pdm-purifier.lock.json has format version ${
     toString (data.version or "none")
   }, and this library reads version ${toString version}. Run `pdm-purifier lock` with this pdm-purifier."

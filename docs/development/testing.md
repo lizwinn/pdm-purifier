@@ -31,4 +31,5 @@ Three scripts run outside the sandbox, each from the repository root:
   fixture or to the lock format.
 
 CI (`.github/workflows/check.yml`) runs the flake checks, the evaluation for
-every system, `tests/lock-run.sh` and `tests/interactive.sh`.
+every system, `tests/lock-run.sh` and `tests/interactive.sh`, on
+x86_64-linux and on aarch64-linux.

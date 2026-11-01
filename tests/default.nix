@@ -40,9 +40,94 @@ let
     (lib.findFirst (p: p.name == name) (throw "fixtures/vcs/pdm.lock has no ${name}")
       (builtins.fromTOML (builtins.readFile ./fixtures/vcs/pdm.lock)).package
     ).version;
+
+  # The simple fixture's pdm-purifier.lock.json, changed by `edit`, as a
+  # file of its own.
+  simpleLock = builtins.fromJSON (builtins.readFile ./fixtures/simple/pdm-purifier.lock.json);
+  editedLock = name: edit: builtins.toFile "${name}.json" (builtins.toJSON (edit simpleLock));
+
+  # Whether reading the simple fixture with `lockFile` fails when Nix
+  # evaluates it, as each broken lockfile must.
+  refusedAtEvaluation =
+    lockFile:
+    !(builtins.tryEval (
+      builtins.deepSeq
+        (final.buildPdmProject {
+          src = fixture "simple";
+          inherit lockFile;
+        }).packages
+        true
+    )).success;
+
+  # A build of the simple fixture that must fail, with the log of the
+  # failure in $out/testBuildFailure.log.
+  failedBuild = project: final.testers.testBuildFailure project.environment;
 in
 {
   inherit cli;
+
+  # The unit tests of the plugin's transports and lock helpers, and of the
+  # command (tests/unit/).
+  unit =
+    runCommand "unit-tests"
+      {
+        nativeBuildInputs = [
+          (final.python3.withPackages (ps: [
+            ps.httpx
+            ps.packaging
+          ]))
+        ];
+      }
+      ''
+        export PYTHONPATH=${../plugin/src}:${../cli}
+        python3 -m unittest discover --start-directory ${./unit} --verbose
+        touch $out
+      '';
+
+  # Lockfiles the Nix library refuses with a message: one that no longer
+  # matches pdm.lock and pyproject.toml, one of another format version, one
+  # that is not an object, and one that is missing.
+  refuses-broken-lockfiles =
+    assert refusedAtEvaluation (editedLock "stale" (lock: lock // { inputsHash = "0"; }));
+    assert refusedAtEvaluation (editedLock "version" (lock: lock // { version = 0; }));
+    assert refusedAtEvaluation (builtins.toFile "shape.json" "[]");
+    assert refusedAtEvaluation (./fixtures/simple + "/missing.json");
+    runCommand "refuses-broken-lockfiles" { } "touch $out";
+
+  # A lockfile without attrs' wheel: PDM asks for it, and the plugin refuses
+  # it with a message instead of reaching the network.
+  refuses-missing-entry =
+    let
+      failure = failedBuild (
+        final.buildPdmProject {
+          src = fixture "simple";
+          lockFile = editedLock "missing-entry" (
+            lock:
+            lock
+            // {
+              artifacts = builtins.filter (entry: !(lib.hasPrefix "attrs-" entry.file)) lock.artifacts;
+            }
+          );
+        }
+      );
+    in
+    runCommand "refuses-missing-entry" { } ''
+      grep -q "is not in pdm-purifier.lock.json" ${failure}/testBuildFailure.log
+      touch $out
+    '';
+
+  # A pdm.lock whose hash of attrs' wheel was edited: PDM refuses the wheel
+  # the plugin serves, because it does not have the hash pdm.lock names
+  # (negative/tampered-hash, from make-negative-fixtures.py).
+  refuses-tampered-hash =
+    let
+      failure = failedBuild (final.buildPdmProject { src = ./negative/tampered-hash; });
+    in
+    runCommand "refuses-tampered-hash" { } ''
+      grep -qi "hash" ${failure}/testBuildFailure.log
+      grep -q "attrs" ${failure}/testBuildFailure.log
+      touch $out
+    '';
 
   # The project and its dependencies install from the lockfiles: attrs from
   # its wheel, and docopt from its sdist, built with the locked setuptools.

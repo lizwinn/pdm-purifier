@@ -76,19 +76,21 @@ class RecordingTransport(httpx.BaseTransport):
         response = self._route(request.url).handle_request(request)
         if request.method != "GET" or response.status_code != 200 or not is_distribution(request.url):
             return response
-        raw = b"".join(response.iter_raw())
+        # The decoded body is the file. It goes on to PDM without the
+        # encoding headers, so PDM reads the bytes that were hashed.
+        body = response.read()
         response.close()
-        body = httpx.Response(200, headers=response.headers, content=raw).read()
         entry = {
             "url": without_fragment(request.url),
             "sha256": hashlib.sha256(body).hexdigest(),
         }
         with self._lock, self._record.open("a") as out:
             out.write(json.dumps(entry, sort_keys=True) + "\n")
+        headers = [(k, v) for k, v in response.headers.items() if k.lower() not in ("content-encoding", "content-length")]
         return httpx.Response(
             response.status_code,
-            headers=response.headers,
-            content=raw,
+            headers=headers,
+            content=body,
             request=request,
             extensions=response.extensions,
         )

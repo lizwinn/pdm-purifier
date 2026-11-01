@@ -48,6 +48,8 @@
   python ? python3,
   # The pdm.lock groups that `environment` installs.
   groups ? [ "default" ],
+  # pdm-purifier.lock.json, when it is not in the project directory.
+  lockFile ? null,
   # A replacement for the fetcher of locked files; see nix/lib/fetch.nix.
   fetchurl ? null,
   # What the builds of sdists and local packages need beyond Python and a C
@@ -68,7 +70,9 @@ let
     ;
 
   root = if projectDir == "." then src else src + "/${projectDir}";
-  lock = import ./lock.nix { inherit root; };
+  lock = import ./lock.nix (
+    { inherit root; } // lib.optionalAttrs (lockFile != null) { inherit lockFile; }
+  );
   fetch = import ./fetch.nix { inherit fetchurl; };
   pyproject = builtins.fromTOML (builtins.readFile (root + "/pyproject.toml"));
   projectName = pyproject.project.name or "project";

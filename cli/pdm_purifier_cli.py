@@ -61,11 +61,22 @@ def inputs_hash(root: Path) -> str:
     return digest.hexdigest()
 
 
+def read_lockfile(root: Path) -> dict:
+    path = root / LOCKFILE
+    try:
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError as error:
+        raise Error(f"{LOCKFILE} is not valid JSON ({error}); restore it from version control or run `pdm-purifier lock`") from None
+    if not isinstance(data, dict):
+        raise Error(f"{LOCKFILE} is not a pdm-purifier lockfile; run `pdm-purifier lock`")
+    return data
+
+
 def lock_is_current(root: Path) -> bool:
     path = root / LOCKFILE
     if not path.exists() or not (root / "pdm.lock").exists():
         return False
-    return json.loads(path.read_text()).get("inputsHash") == inputs_hash(root)
+    return read_lockfile(root).get("inputsHash") == inputs_hash(root)
 
 
 def source_root(root: Path) -> tuple[Path, str]:
@@ -161,7 +172,7 @@ def run_pdm(root: Path, args: list[str]) -> int:
 def publish(root: Path, packages: list[str], publish_args: list[str]) -> None:
     if not lock_is_current(root):
         raise Error(f"{LOCKFILE} is missing or out of date; run `pdm-purifier lock` first")
-    outputs = json.loads((root / LOCKFILE).read_text()).get("outputs", [])
+    outputs = read_lockfile(root).get("outputs", [])
     by_name = {o["name"]: o for o in outputs}
     names = packages or sorted(by_name)
     if not names:
