@@ -61,6 +61,8 @@ pinned_versions: dict[str, set[str]] = {}
 FORMAT_VERSION = 2
 LOCKFILE = "pdm-purifier.lock.json"
 VCS_KEYS = ("git", "hg", "svn", "bzr")
+# The architectures of the Linux systems that the Nix build supports.
+SUPPORTED_ARCHITECTURES = ("x86_64", "aarch64")
 
 
 class LockError(Exception):
@@ -98,6 +100,28 @@ def is_universal_wheel(filename: str) -> bool:
         return False
     _, _, _, tags = parse_wheel_filename(filename)
     return any(tag.abi == "none" and tag.platform == "any" for tag in tags)
+
+
+def has_linux_wheel(filename: str, arch: str, python: tuple[int, int]) -> bool:
+    """Whether a wheel installs on Linux ``arch`` with CPython ``python``:
+    its tags name a Linux platform of that architecture, and a Python
+    interface the interpreter satisfies (any Python 3, the stable ABI from an
+    older CPython, or this CPython)."""
+    if not filename.endswith(".whl"):
+        return False
+    _, _, _, tags = parse_wheel_filename(filename)
+    major, minor = python
+    for tag in tags:
+        if "linux" not in tag.platform or not tag.platform.endswith(arch):
+            continue
+        if tag.abi == "none" and tag.interpreter.startswith("py"):
+            return True
+        if tag.interpreter == f"cp{major}{minor}":
+            return True
+        if tag.abi == "abi3" and tag.interpreter.startswith("cp") and tag.interpreter[2:].isdigit():
+            if int(tag.interpreter[2:]) <= int(f"{major}{minor}"):
+                return True
+    return False
 
 
 def is_sdist(filename: str) -> bool:
@@ -210,7 +234,11 @@ class Locker:
                 filename = item["file"]
                 link = self.links(name).get(filename)
                 if link is None:
-                    raise LockError(f"{name}: none of the project's indexes lists {filename}")
+                    raise LockError(
+                        f"{name}: none of the project's indexes lists {filename}, which pdm.lock names. "
+                        "An index may have removed the file since pdm.lock was written. "
+                        "Run `pdm lock --update-reuse` to bring pdm.lock up to date."
+                    )
                 url = link.url_without_fragment
                 self.urls[filename] = url
             filenames.append(filename)
@@ -399,9 +427,17 @@ class Locker:
         return tops[0] if len(tops) == 1 and tops[0].is_dir() else dest
 
     def needs_build(self, filenames: list[str]) -> bool:
-        """A package may be built from its sdist on some platform when no
-        wheel installs on every platform."""
-        return any(is_sdist(f) for f in filenames) and not any(is_universal_wheel(f) for f in filenames)
+        """A package is built from its sdist, so that the build requirements
+        are recorded, when a system that pdm-purifier supports has no wheel
+        for it: no universal wheel, and no wheel of the lock run's Python for
+        both Linux x86_64 and Linux aarch64."""
+        if not any(is_sdist(f) for f in filenames):
+            return False
+        if any(is_universal_wheel(f) for f in filenames):
+            return False
+        interpreter = self.environment.interpreter
+        python = (interpreter.major, interpreter.minor)
+        return not all(any(has_linux_wheel(f, arch, python) for f in filenames) for arch in SUPPORTED_ARCHITECTURES)
 
     def recorded(self) -> list[dict]:
         if not self.record.exists():

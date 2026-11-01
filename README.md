@@ -179,10 +179,27 @@ A dependency with a C extension needs a C compiler on PATH, as it does for
 
 ## Real-world projects
 
-No real-world project is listed yet. The tests build three fixtures under
-`tests/fixtures/`: a registry wheel with an sdist-only dependency, a mix of
-URL, git, local and submodule sources, and a Mercurial, Subversion and
-Bazaar dependency.
+[PDM](https://github.com/pdm-project/pdm) 2.27.0, at commit `09c95b78`, is
+the first project. The CI job `real-world` (`tests/real-world.sh`) locks it
+and builds its virtual environment and its package in the Nix sandbox, and
+the built `pdm` runs. Three things came out of it:
+
+- The committed pdm.lock lists a zensical wheel that PyPI has since
+  removed, so `pdm-purifier lock` stops with a message that says the index
+  no longer lists the file. The job refreshes pdm.lock with `pdm lock`.
+- A package that builds from an sdist with a Rust toolchain, such as
+  cryptography, cannot be locked, because the toolchain downloads outside
+  PDM. The lock run skips a package's sdist build when wheels for the
+  lock run's Python exist for Linux on x86_64 and on aarch64.
+- A C extension that builds during the lock run, such as cffi, needs its
+  libraries on the host: the job provides libffi and pkg-config.
+
+The job builds the environment and the package. It does not run PDM's own
+test suite, which runs against PyPI.
+
+The fixtures under `tests/fixtures/` cover the other sources: a registry
+wheel with an sdist-only dependency, a mix of URL, git, local and submodule
+sources, and a Mercurial, Subversion and Bazaar dependency.
 
 ## Credits
 

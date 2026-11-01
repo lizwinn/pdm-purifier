@@ -9,6 +9,7 @@ from pathlib import Path
 
 from pdm_purifier.lock import (
     content_hash,
+    has_linux_wheel,
     inputs_hash,
     is_sdist,
     is_universal_wheel,
@@ -30,6 +31,19 @@ class FileNames(unittest.TestCase):
         self.assertTrue(is_universal_wheel("six-1.17.0-py2.py3-none-any.whl"))
         self.assertFalse(is_universal_wheel("xxhash-4.0.2-cp314-cp314-manylinux_2_17_x86_64.whl"))
         self.assertFalse(is_universal_wheel("docopt-0.6.2.tar.gz"))
+
+    def test_linux_wheels_by_architecture_and_python(self) -> None:
+        python = (3, 14)
+        manylinux = "cryptography-50.0.2-cp311-abi3-manylinux_2_28_{}.whl"
+        self.assertTrue(has_linux_wheel(manylinux.format("x86_64"), "x86_64", python))
+        self.assertFalse(has_linux_wheel(manylinux.format("x86_64"), "aarch64", python))
+        self.assertTrue(has_linux_wheel("six-1.17.0-py2.py3-none-any.whl".replace("any", "linux_aarch64"), "aarch64", python))
+        # The stable ABI of a newer CPython, and a wheel for another CPython.
+        self.assertFalse(has_linux_wheel("a-1-cp315-abi3-manylinux_2_17_x86_64.whl", "x86_64", python))
+        self.assertFalse(has_linux_wheel("a-1-cp313-cp313-manylinux_2_17_x86_64.whl", "x86_64", python))
+        self.assertTrue(has_linux_wheel("a-1-cp314-cp314-musllinux_1_2_x86_64.whl", "x86_64", python))
+        self.assertFalse(has_linux_wheel("a-1-cp314-cp314-macosx_11_0_arm64.whl", "aarch64", python))
+        self.assertFalse(has_linux_wheel("a-1.tar.gz", "x86_64", python))
 
     def test_sdists(self) -> None:
         self.assertTrue(is_sdist("docopt-0.6.2.tar.gz"))

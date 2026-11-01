@@ -232,6 +232,11 @@ let
 
   # The environment every PDM run in the sandbox gets.
   setupPdm = ''
+    # The Python setup hook of nixpkgs puts the site-packages of PDM and its
+    # dependencies on PYTHONPATH, which the project's virtual environment and
+    # the isolated build environments would otherwise import before their
+    # locked packages. PDM sets its own search path.
+    unset PYTHONPATH NIX_PYTHONPATH
     export HOME="$TMPDIR/home"
     mkdir -p "$HOME"
     export PDM_CACHE_DIR="$TMPDIR/pdm-cache"
