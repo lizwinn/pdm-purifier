@@ -148,7 +148,17 @@ def _patch_finder() -> None:
     PackageFinder._find_packages = _find_packages  # type: ignore[method-assign]
 
 
+def _warn_unlocked(project: Any, command: str | None = None, **kwargs: Any) -> None:
+    from pathlib import Path
+
+    if command != "purifier":
+        transport.warn_unlocked(Path(project.root))
+
+
 def main(core: Any) -> None:
+    from pdm.signals import pre_invoke
+
+    pre_invoke.connect(_warn_unlocked, weak=False)
     _patch_sessions()
     _patch_version_control()
     _patch_finder()

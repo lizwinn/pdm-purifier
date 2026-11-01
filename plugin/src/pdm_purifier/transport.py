@@ -192,6 +192,22 @@ def inputs_hash(root: Path) -> str:
     return digest.hexdigest()
 
 
+_warned_unlocked: set[Path] = set()
+
+
+def warn_unlocked(root: Path) -> bool:
+    if os.environ.get(MODE_ENV):
+        return False
+    named = os.environ.get(LOCKFILE_ENV)
+    path = Path(named) if named else root / "pdm-purifier.lock.json"
+    if path.exists():
+        return False
+    if root not in _warned_unlocked:
+        print('pdm-purifier: warning: no pdm-purifier.lock.json found; running PDM impurely. Run `pdm-purifier lock` to use Nix-resolved dependencies.', file=sys.stderr)
+        _warned_unlocked.add(root)
+    return True
+
+
 def activate(root: Path) -> None:
     """Choose serve mode for a project that `pdm-purifier prefetch` prepared.
 
@@ -209,17 +225,18 @@ def activate(root: Path) -> None:
         return
     lockfile = os.environ.get(LOCKFILE_ENV)
     base = Path(lockfile).parent if lockfile else root
+    path = Path(lockfile) if lockfile else root / "pdm-purifier.lock.json"
+    if warn_unlocked(root):
+        return
     manifest = base / PREFETCHED
     inputs = base / PREFETCHED_INPUTS
     if not manifest.exists() or not inputs.exists():
-        return
+        raise RuntimeError("pdm-purifier: the lock is not prefetched; run `pdm-purifier prefetch`")
     if not pdm_lock_path(root).exists() or inputs.read_text().strip() != inputs_hash(root):
-        print(
-            "pdm-purifier: pdm.lock or pyproject.toml changed since `pdm-purifier prefetch`, so PDM runs online. "
-            "Run `pdm-purifier lock` and `pdm-purifier prefetch`.",
-            file=sys.stderr,
+        raise RuntimeError(
+            "pdm-purifier: pdm.lock or pyproject.toml changed since prefetch. "
+            "Run `pdm-purifier lock` and `pdm-purifier prefetch`."
         )
-        return
     os.environ[MODE_ENV] = "serve"
     os.environ[MANIFEST_ENV] = str(manifest.resolve())
     # Git sends a clone of each locked repository to its checkout in the

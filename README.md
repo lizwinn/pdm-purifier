@@ -1,11 +1,11 @@
 # pdm-purifier
 
-pdm-purifier lets Nix build a [PDM](https://pdm-project.org) project in its
-sandbox, offline, from the project's lockfiles. You do not commit generated
-Nix files to the project. It is one of the
-[nix-purifiers](https://nix-purifiers.github.io), which share a
-[contract](https://github.com/nix-purifiers/purifier/blob/main/CONTRACT.md):
-the same builder, commands and checks in every ecosystem.
+pdm-purifier keeps PDM's development workflow on locked,
+Nix-resolved dependencies. Use the normal build and test commands in your
+working tree; building the project itself in the Nix sandbox is an
+optional next step.
+
+It follows the [purifier contract](https://github.com/nix-purifiers/purifier/blob/main/CONTRACT.md).
 
 pdm.lock pins every package with the names and hashes of its files, but not
 their URLs, and it pins nothing that PDM installs to build a package.
@@ -14,42 +14,103 @@ hold only those two things: the URLs that pdm.lock leaves out, and the
 files that building a package installs. Nix reads everything else from
 pdm.lock and pyproject.toml.
 
+## Installation
+
+Install the integration into your Nix profile once:
+
+```sh
+nix profile install 'github:nix-purifiers/pdm-purifier'
+```
+
+This installs the `pdm` wrapper. Use it for the locked
+development workflow below. With no purifier lockfile, it warns on standard
+error and runs the ordinary tool with impure resolution.
+
+`nix shell` makes an integration available temporarily instead of installing
+it. Keep using the activation steps below where a project environment or
+prefetched cache is required.
+
 ## Quickstart
 
-From the directory that holds pdm.lock, record the downloads and fetch them:
+Install Nix, then run the following from your existing project's root.
+The setup prepares the locked dependencies and the integration that
+PDM's normal commands use:
 
 ```zsh
+nix develop github:nix-purifiers/pdm-purifier
+pdm-purifier lock
+pdm-purifier prefetch
+pdm sync
+pdm run pytest
+```
+
+Commit the lockfiles that the lock command writes, including the build
+tool's own lockfile when it has one. Keep using the project's usual build,
+test and editor commands with this setup. Nix provides the locked
+dependencies; the development commands above run outside the Nix sandbox.
+No project Nix files are needed for this workflow.
+
+Sandboxed builds of the whole project are an optional
+[next step](#building-the-project-with-nix).
+
+## Development loop
+
+After `prefetch`, the loop goes through plain `pdm`:
+
+```zsh
+pdm sync
+pdm run app
+pdm add requests
+pdm build
+```
+
+The PDM of the `pdm-purifier` package has the plugin. When the project
+has a manifest from `prefetch` and its pdm.lock and pyproject.toml have not
+changed since, the plugin answers every request PDM makes from the locked
+files in the Nix store.
+
+To change dependencies, run PDM with `PDM_PURIFIER_MODE=off` and update
+both lockfiles:
+
+```zsh
+PDM_PURIFIER_MODE=off pdm add requests
 nix run github:nix-purifiers/pdm-purifier -- lock
 nix run github:nix-purifiers/pdm-purifier -- prefetch
 ```
 
-We recommend committing both lockfiles, `pdm.lock` and
-`pdm-purifier.lock.json`, to the project's repository. The builder and the
-commands look for them there.
+`lock` keeps the versions in pdm.lock. It writes pdm.lock where it is
+missing, and brings it up to date with `pdm lock --update-reuse` where
+pyproject.toml no longer matches it. To move versions, run
+`pdm-purifier update`, or `pdm-purifier update <package>...` for some
+packages. It runs `pdm update --no-sync` and then relocks.
 
-Then build the project from its directory with Nix. No Nix file is added to
-the project. The `overlays.default` of the flake adds one attribute to the
-package set, the scope `pdm-purifier`, which holds the builder
-`buildPdmProject` beside the command and the plugin:
+`publish` uploads the `release` that Nix built, with `pdm publish
+--no-build`. Arguments after `--` go to `pdm publish`, and `--package
+<name>` limits it to some distributions:
 
 ```zsh
-nix build --impure --expr '
-  let
-    purifier = builtins.getFlake "github:nix-purifiers/pdm-purifier";
-    pkgs = import purifier.inputs.nixpkgs {
-      system = builtins.currentSystem;
-      overlays = [ purifier.overlays.default ];
-    };
-  in
-  (pkgs.pdm-purifier.buildPdmProject { src = ./.; }).packages.app'
+nix run github:nix-purifiers/pdm-purifier -- publish -- --username __token__ --password "$PYPI_TOKEN"
 ```
 
-This uses the purifier's pinned nixpkgs, matching the lock command above.
-To build with ambient `<nixpkgs>` from your Nix search path instead,
-replace `import purifier.inputs.nixpkgs` with `import <nixpkgs>`.
-Both forms need no Nix files in your project. The build tool and language
-versions must match the lockfile; with ambient nixpkgs, lock with the
-purifier from that package set or pass a compatible toolchain to the builder.
+A project can keep its build external, in the repository of the flake that
+calls the builder. That flake passes `lockFile` and `pdmLock` to
+`buildPdmProject`, and the builder uses them in place of the copies in
+`src`. Every command takes `--lockfile <path>`, or reads
+`PDM_PURIFIER_LOCKFILE`, for `pdm-purifier.lock.json`, and
+`--tool-lockfile <path>`, or reads `PDM_PURIFIER_TOOL_LOCKFILE`, for
+`pdm.lock`. With either one, `lock` and `update` write the file there and
+leave the copy in the project as it is, and `lock` starts from the copy in
+the project when the outside one does not exist yet. The dev shell of the
+flake can set `PDM_PURIFIER_LOCKFILE` and `PDM_PURIFIER_TOOL_LOCKFILE`, and
+`PDM_LOCKFILE` to the same path as the second, which plain `pdm` reads.
+
+## Building the project with Nix
+
+Once the native development workflow is working, you can also build and
+test the whole project in the Nix sandbox. For this step, keep a flake or
+another Nix build definition in the project's repository, or maintain an
+external packaging repository that points at its sources and lockfiles.
+The builder consumes the same lockfiles as the development workflow.
 
 The result is the sdist and wheel of the project `app`, as `pdm build` makes
 them. A project whose authors want a flake can have one that packages it.
@@ -118,56 +179,29 @@ source of a flake has no `.git` directory.
 into the shape that every purifier gives, with `entries`, `outputs` and
 `problems`.
 
-## Development loop
+### One-off builds without a project Nix file
 
-After `prefetch`, the loop goes through plain `pdm`:
-
-```zsh
-pdm sync
-pdm run app
-pdm add requests
-pdm build
-```
-
-The PDM of the `pdm-purifier` package has the plugin. When the project
-has a manifest from `prefetch` and its pdm.lock and pyproject.toml have not
-changed since, the plugin answers every request PDM makes from the locked
-files in the Nix store.
-
-To change dependencies, run PDM with `PDM_PURIFIER_MODE=off` and update
-both lockfiles:
+For an ad hoc build, the builder can also be evaluated directly from the
+project root. Replace the example package name with one from your project:
 
 ```zsh
-PDM_PURIFIER_MODE=off pdm add requests
-nix run github:nix-purifiers/pdm-purifier -- lock
-nix run github:nix-purifiers/pdm-purifier -- prefetch
+nix build --impure --expr '
+  let
+    purifier = builtins.getFlake "github:nix-purifiers/pdm-purifier";
+    pkgs = import purifier.inputs.nixpkgs {
+      system = builtins.currentSystem;
+      overlays = [ purifier.overlays.default ];
+    };
+  in
+  (pkgs.pdm-purifier.buildPdmProject { src = ./.; }).packages.app'
 ```
 
-`lock` keeps the versions in pdm.lock. It writes pdm.lock where it is
-missing, and brings it up to date with `pdm lock --update-reuse` where
-pyproject.toml no longer matches it. To move versions, run
-`pdm-purifier update`, or `pdm-purifier update <package>...` for some
-packages. It runs `pdm update --no-sync` and then relocks.
-
-`publish` uploads the `release` that Nix built, with `pdm publish
---no-build`. Arguments after `--` go to `pdm publish`, and `--package
-<name>` limits it to some distributions:
-
-```zsh
-nix run github:nix-purifiers/pdm-purifier -- publish -- --username __token__ --password "$PYPI_TOKEN"
-```
-
-A project can keep its build external, in the repository of the flake that
-calls the builder. That flake passes `lockFile` and `pdmLock` to
-`buildPdmProject`, and the builder uses them in place of the copies in
-`src`. Every command takes `--lockfile <path>`, or reads
-`PDM_PURIFIER_LOCKFILE`, for `pdm-purifier.lock.json`, and
-`--tool-lockfile <path>`, or reads `PDM_PURIFIER_TOOL_LOCKFILE`, for
-`pdm.lock`. With either one, `lock` and `update` write the file there and
-leave the copy in the project as it is, and `lock` starts from the copy in
-the project when the outside one does not exist yet. The dev shell of the
-flake can set `PDM_PURIFIER_LOCKFILE` and `PDM_PURIFIER_TOOL_LOCKFILE`, and
-`PDM_LOCKFILE` to the same path as the second, which plain `pdm` reads.
+This uses the purifier's pinned nixpkgs, matching the lock command above.
+To build with ambient `<nixpkgs>` from your Nix search path instead,
+replace `import purifier.inputs.nixpkgs` with `import <nixpkgs>`.
+Both forms need no Nix files in your project. The build tool and language
+versions must match the lockfile; with ambient nixpkgs, lock with the
+purifier from that package set or pass a compatible toolchain to the builder.
 
 ## Working offline
 
@@ -196,7 +230,7 @@ Each message names the command that fixes it.
 | `pdm-purifier.lock.json has no URL for ...` | pdm.lock lists a file the lockfile has no URL for. | `pdm-purifier lock` |
 | `pdm-purifier.lock.json is not valid JSON` | The file is damaged. | Restore it from version control, or `pdm-purifier lock` |
 | `<url> is not in pdm-purifier.lock.json` | PDM asked for a file that is not locked. | Run the command with `PDM_PURIFIER_MODE=off`, then `lock` and `prefetch` |
-| `pdm.lock or pyproject.toml changed since pdm-purifier prefetch` | The project changed since the last prefetch, so PDM runs online. | `pdm-purifier lock`, then `pdm-purifier prefetch` |
+| `pdm.lock or pyproject.toml changed since pdm-purifier prefetch` | The project changed since the last prefetch, so PDM stops until the lock and cache are renewed. | `pdm-purifier lock`, then `pdm-purifier prefetch` |
 
 ## Supported language repositories
 
@@ -229,6 +263,11 @@ on aarch64 with the lock run's Python. A dependency with a C extension
 needs a C compiler on PATH, as it does for `pdm install`.
 
 ## Examples
+
+For day-to-day work on these projects, use the native-tool setup and
+commands in [Quickstart](#quickstart) and [Development loop](#development-loop).
+The Nix expressions below show optional sandboxed packaging of those
+projects.
 
 To build [PDM](https://github.com/pdm-project/pdm) itself with Nix, clone
 it, bring its pdm.lock up to date, and lock the downloads:
