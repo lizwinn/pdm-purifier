@@ -38,7 +38,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: nix-purifiers/nix-purifiers.github.io
-          ref: 0ee676f7396589c9c14f236b2d4e6b0477200ab3
+          ref: e6edb88d566d8d5df942328d006a9bc3d89ae5bc
           path: .pages-theme
           persist-credentials: false
       - name: Prepare the project documentation
@@ -50,6 +50,12 @@ jobs:
           destination: .pages-site
           future: true
           build_revision: ${{ github.sha }}
+      - name: Restore native package repositories from releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 .pages-theme/release/repository.py \
+            --repository "$GITHUB_REPOSITORY" --site .pages-site
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
         with:
           path: .pages-site

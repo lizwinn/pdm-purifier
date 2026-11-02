@@ -96,6 +96,14 @@ the project when the outside one does not exist yet. The dev shell of the
 flake can set `PDM_PURIFIER_LOCKFILE` and `PDM_PURIFIER_TOOL_LOCKFILE`, and
 `PDM_LOCKFILE` to the same path as the second, which plain `pdm` reads.
 
+## Published plugin
+
+Versioned plugin wheels are available in the [package index](https://nix-purifiers.github.io/pdm-purifier/simple/pdm-purifier/)
+and as [release assets](https://github.com/nix-purifiers/pdm-purifier/releases).
+Install a wheel URL with `pdm self add WHEEL_URL`.
+Use `pdm-purifier lock` and `pdm-purifier prefetch` from the Quickstart to
+prepare the project; the plugin then serves its locked dependencies to PDM.
+
 ## Building the project with Nix
 
 Once the native development workflow is working, you can also build and
