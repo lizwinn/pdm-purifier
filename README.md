@@ -313,6 +313,4 @@ result/bin/pdm --version
 ## Credits
 
 The purifier idea was inspired by nixcloud's
-[cargo (libnix)](https://github.com/nixcloud/cargo). The shared library
-and the contract are in [nix-purifiers/purifier](https://github.com/nix-purifiers/purifier).
-`docs/development/` describes the design and the tests.
+[cargo (libnix)](https://github.com/nixcloud/cargo).
