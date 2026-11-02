@@ -218,14 +218,13 @@ def activate(root: Path) -> None:
     PDM_PURIFIER_MODE is not set, and the project's pdm.lock and
     pyproject.toml still have that hash, PDM serves every download from the
     locked files. PDM_PURIFIER_MODE=off turns that off, for a command that
-    changes the dependencies. A project changed since the prefetch runs PDM
-    the usual way, with a warning.
+    changes the dependencies. A project changed since the prefetch stops
+    and asks for a relock. With no purifier lock, PDM warns and runs normally.
     """
     if os.environ.get(MODE_ENV):
         return
     lockfile = os.environ.get(LOCKFILE_ENV)
     base = Path(lockfile).parent if lockfile else root
-    path = Path(lockfile) if lockfile else root / "pdm-purifier.lock.json"
     if warn_unlocked(root):
         return
     manifest = base / PREFETCHED

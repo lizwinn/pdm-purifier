@@ -2,6 +2,7 @@
 """Unit tests of the transports in plugin/src/pdm_purifier/transport.py."""
 
 import hashlib
+import io
 import json
 import os
 import tempfile
@@ -125,6 +126,8 @@ class Activation(unittest.TestCase):
     def setUp(self) -> None:
         self.dir = tempfile.TemporaryDirectory()
         self.root = Path(self.dir.name)
+        (self.root / "pdm-purifier.lock.json").write_text("{}\n")
+        transport._warned_unlocked.clear()
         (self.root / "pdm.lock").write_text("lock\n")
         (self.root / "pyproject.toml").write_text("project\n")
         state = self.root / ".pdm-purifier"
@@ -147,14 +150,29 @@ class Activation(unittest.TestCase):
         self.assertEqual(env["GIT_CONFIG_KEY_1"], "url./nix/store/a.insteadOf")
         self.assertEqual(env["GIT_CONFIG_VALUE_1"], "https://example.org/a.git")
 
-    def test_changed_project_runs_online(self) -> None:
+    def test_changed_project_stops(self) -> None:
         (self.root / "pyproject.toml").write_text("changed\n")
-        self.assertNotIn("PDM_PURIFIER_MODE", self.activate({}))
+        with self.assertRaisesRegex(RuntimeError, "pdm-purifier lock"):
+            self.activate({})
+
+    def test_no_lock_warns_even_when_old_cache_remains(self) -> None:
+        (self.root / "pdm-purifier.lock.json").unlink()
+        warning = io.StringIO()
+        with mock.patch("sys.stderr", warning):
+            self.assertNotIn("PDM_PURIFIER_MODE", self.activate({}))
+        self.assertIn("warning:", warning.getvalue())
+        self.assertIn("impurely", warning.getvalue())
+
+    def test_existing_lock_without_prefetch_stops(self) -> None:
+        (self.root / ".pdm-purifier" / "inputs").unlink()
+        with self.assertRaisesRegex(RuntimeError, "pdm-purifier prefetch"):
+            self.activate({})
 
     def test_external_lockfile_is_served_from_beside_it(self) -> None:
         outside = Path(self.dir.name) / "outside"
         outside.mkdir()
         (self.root / ".pdm-purifier").rename(outside / ".pdm-purifier")
+        (self.root / "pdm-purifier.lock.json").rename(outside / "pdm-purifier.lock.json")
         self.assertNotIn("PDM_PURIFIER_MODE", self.activate({}))
         env = self.activate({"PDM_PURIFIER_LOCKFILE": str(outside / "pdm-purifier.lock.json")})
         self.assertEqual(env["PDM_PURIFIER_MODE"], "serve")
@@ -163,7 +181,8 @@ class Activation(unittest.TestCase):
         outside = Path(self.dir.name) / "outside.lock"
         outside.write_text("lock\n")
         (self.root / "pdm.lock").write_text("tree copy changed\n")
-        self.assertNotIn("PDM_PURIFIER_MODE", self.activate({}))
+        with self.assertRaisesRegex(RuntimeError, "pdm-purifier lock"):
+            self.activate({})
         env = self.activate({"PDM_LOCKFILE": str(outside)})
         self.assertEqual(env["PDM_PURIFIER_MODE"], "serve")
 
