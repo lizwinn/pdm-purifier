@@ -111,7 +111,8 @@ repository or in another one:
 
 ```nix
 {
-  inputs.pdm-purifier.url = "github:nix-purifiers/pdm-purifier";
+  inputs.pdm-purifier.url =
+    "github:nix-purifiers/pdm-purifier";
   inputs.nixpkgs.follows = "pdm-purifier/nixpkgs";
 
   outputs =
@@ -122,13 +123,17 @@ repository or in another one:
         inherit system;
         overlays = [ pdm-purifier.overlays.default ];
       };
-      project = pkgs.pdm-purifier.buildPdmProject { src = ./.; };
+      project = pkgs.pdm-purifier.buildPdmProject {
+        src = ./.;
+      };
     in
     {
       packages.${system} = {
-        # The script `app` of the project, installed with its dependencies.
+        # The script `app` of the project, installed
+        # with its dependencies.
         default = project.programs.app;
-        # The sdist and wheel of the project, as `pdm build` makes them.
+        # The sdist and wheel of the project, as `pdm
+        # build` makes them.
         dist = project.packages.app;
       };
       # The project's tests, run in the sandbox.
