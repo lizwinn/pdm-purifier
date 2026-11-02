@@ -313,6 +313,8 @@ in
 
   # The project and its dependencies install from the lockfiles: attrs from
   # its wheel, and docopt from its sdist, built with the locked setuptools.
+  composition-producer = simple.packages.simple;
+
   simple-runs = runCommand "simple-runs" { } ''
     output=$(${lib.getExe simple.programs.simple} World)
     echo "$output"
@@ -321,6 +323,55 @@ in
   '';
 
   # The project's tests, which the builder runs with its test group.
+  python-projection =
+    runCommand "pdm-python-projection-downstream"
+      {
+        nativeBuildInputs = [
+          pkgs.uv
+          pkgs.python3
+        ];
+      }
+      ''
+        export HOME=$TMPDIR UV_OFFLINE=1 UV_NO_INDEX=1 UV_PYTHON_DOWNLOADS=never
+        uv venv --python ${pkgs.python3.interpreter} downstream
+        uv pip install --python downstream/bin/python --find-links ${simple.projections.python} simple
+        test "$(downstream/bin/simple World)" = 'Hello, World, from simple'
+        downstream/bin/python - <<'PYTHON'
+        from importlib.metadata import distributions, version
+        assert '+nix.' in version('simple')
+        assert version('attrs') == '26.1.0'
+        installed = {distribution.metadata['Name'].lower() for distribution in distributions()}
+        assert 'pdm-backend' not in installed and 'setuptools' not in installed, installed
+        PYTHON
+        touch $out
+      '';
+
+  python-projection-sources =
+    runCommand "pdm-native-sources-projection-downstream"
+      {
+        nativeBuildInputs = [
+          pkgs.uv
+          pkgs.python3
+        ];
+      }
+      ''
+        export HOME=$TMPDIR UV_OFFLINE=1 UV_NO_INDEX=1 UV_PYTHON_DOWNLOADS=never UV_LINK_MODE=copy
+        uv venv --python ${pkgs.python3.interpreter} downstream
+        uv pip install --python downstream/bin/python --find-links ${sources.projections.python} sources
+        test "$(downstream/bin/sources)" = 'six 1.17.0, idna 3.10, docopt 0.6.2, xxh64 894c17e562117b4d, localpkg 0.2.0'
+        downstream/bin/python - <<'PYTHON'
+        from importlib.metadata import version
+        assert '+nix.' in version('sources')
+        assert '+nix.' in version('localpkg')
+        PYTHON
+        python - ${sources.packages.localpkg.projections.python.catalog} <<'PYTHON'
+        import json, sys
+        modules = json.load(open(sys.argv[1]))['modules']
+        assert [module['name'] for module in modules] == ['localpkg'], modules
+        PYTHON
+        touch $out
+      '';
+
   simple-tests = simple.tests;
 
   # `pdm build` makes the sdist and the wheel that the lock run recorded,

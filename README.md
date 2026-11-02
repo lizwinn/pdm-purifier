@@ -104,6 +104,35 @@ Install a wheel URL with `pdm self add WHEEL_URL`.
 Use `pdm-purifier lock` and `pdm-purifier prefetch` from the Quickstart to
 prepare the project; the plugin then serves its locked dependencies to PDM.
 
+## Dependencies from another purified project
+
+```zsh
+nix shell 'github:nix-purifiers/pdm-purifier'
+pdm-purifier lock \
+  --input 'github:owner/library/<rev>#library'
+pdm-purifier prefetch
+pdm sync
+pdm run test
+```
+
+The producer must expose `projections.python`. The plugin applies its wheels
+through PDM's native resolver overrides; project dependency declarations stay
+unchanged. The purifier lock records the pinned Nix source and omits supplied
+wheels from its downloads. Relocking retains that pin; `update` refreshes it.
+Repeat `--input` for additional producers. Conflicting providers are rejected.
+
+After prefetch, plain PDM commands use the bindings from the Nix-built
+manifest. Recorded wheel paths are rebound for the current machine without
+rewriting committed lockfiles. Supplied wheels bypass writable wheel and
+installation caches.
+
+The builder exposes `projections.python` on each local package and on the
+whole project. Each wheelhouse follows the package's native runtime graph;
+unrelated development and build tools are excluded. Composed publishing
+uploads those wheels and their runtime closure, with Nix-derived versions and
+dependency metadata for ordinary installers. Use an index accepting local
+versions, or consume the wheelhouse with `--find-links`.
+
 ## Building the project with Nix
 
 Once the native development workflow is working, you can also build and

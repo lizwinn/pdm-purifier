@@ -148,6 +148,43 @@ def _patch_finder() -> None:
     PackageFinder._find_packages = _find_packages  # type: ignore[method-assign]
 
 
+def _patch_wheel_capture() -> None:
+    """Retain native wheel bytes before PDM cleans its build/cache paths."""
+    import os
+    import tempfile
+    import shutil
+    from pdm_purifier.inputs import file_hash
+    from pathlib import Path
+    from pdm.models.candidates import PreparedCandidate
+
+    build = PreparedCandidate.build
+    if getattr(build, '_pdm_purifier_capture', False):
+        return
+
+    def capture(self: Any) -> Path:
+        wheel = build(self)
+        directory = os.environ.get('PDM_PURIFIER_EXPORT_WHEELS')
+        if directory:
+            destination = Path(directory)
+            destination.mkdir(parents=True, exist_ok=True)
+            target = destination / wheel.name
+            with wheel.open('rb') as source, tempfile.NamedTemporaryFile(dir=destination, delete=False) as staged:
+                shutil.copyfileobj(source, staged)
+            try:
+                os.chmod(staged.name, 0o644)
+                try:
+                    os.link(staged.name, target)
+                except FileExistsError:
+                    if file_hash(target) != file_hash(wheel):
+                        raise RuntimeError(f'pdm-purifier: conflicting native wheel {wheel.name}')
+            finally:
+                Path(staged.name).unlink()
+        return wheel
+
+    capture._pdm_purifier_capture = True
+    PreparedCandidate.build = capture
+
+
 def _warn_unlocked(project: Any, command: str | None = None, **kwargs: Any) -> None:
     from pathlib import Path
 
@@ -159,7 +196,11 @@ def main(core: Any) -> None:
     from pdm.signals import pre_invoke
 
     pre_invoke.connect(_warn_unlocked, weak=False)
+    from pdm_purifier.inputs import apply, patch_immutable_inputs
+    pre_invoke.connect(apply, weak=False)
+    patch_immutable_inputs()
     _patch_sessions()
     _patch_version_control()
     _patch_finder()
+    _patch_wheel_capture()
     core.register_command(PurifierCommand, "purifier")

@@ -118,6 +118,12 @@ def inputs_hash(root: Path, pdm_lock: Path | None = None) -> str:
     return digest.hexdigest()
 
 
+def content_hash(data: dict) -> str:
+    values = {key: value for key, value in data.items() if key != 'contentHash'}
+    return hashlib.sha256(json.dumps(values, sort_keys=True,
+        separators=(',', ':'), ensure_ascii=False).encode()).hexdigest()
+
+
 def read_lockfile(path: Path) -> dict:
     try:
         data = json.loads(path.read_text())
@@ -142,20 +148,23 @@ def require_current(root: Path, lockfile: Path, pdm_lock: Path) -> None:
         raise Error(f"{lockfile} does not match {pdm_lock.name} and pyproject.toml; run `pdm-purifier lock`")
 
 
-def source_root(root: Path, pdm_lock: Path | None = None) -> tuple[Path, str]:
+def source_root(root: Path, pdm_lock: Path | None = None, lockfile: Path | None = None) -> tuple[Path, str]:
     """The directory Nix reads, which holds the project and every local
     package pdm.lock names by path, and the project's place inside it."""
     lock = tomllib.loads((pdm_lock or root / "pdm.lock").read_text())
+    original = lockfile or root / LOCKFILE
+    records = read_lockfile(original).get('projectInputs', []) if original.exists() else []
+    provided = [entry['nativeRepository'] for entry in records if 'nativeRepository' in entry]
     paths = [root.resolve()]
     for package in lock.get("package", []):
-        if "path" in package:
+        if "path" in package and not any(Path(package['path']).is_relative_to(repository) for repository in provided):
             paths.append((root / package["path"]).resolve())
     common = Path(os.path.commonpath([str(p) for p in paths]))
     return common, os.path.relpath(root.resolve(), common)
 
 
 def nix_build(root: Path, lockfile: Path, pdm_lock: Path, out_link: Path, **args: str) -> Path:
-    src, project_dir = source_root(root, pdm_lock)
+    src, project_dir = source_root(root, pdm_lock, lockfile)
     command = [
         "nix-build",
         str(Path(setting("PDM_PURIFIER_NIX_LIB")) / "cli.nix"),
@@ -181,7 +190,9 @@ def nix_build(root: Path, lockfile: Path, pdm_lock: Path, out_link: Path, **args
 def pdm_environment(root: Path, pdm_lock: Path) -> dict[str, str]:
     """The environment of a PDM run without the plugin's variables. PDM
     reads an outside pdm.lock from PDM_LOCKFILE."""
-    env = {k: v for k, v in os.environ.items() if not k.startswith("PDM_PURIFIER_")}
+    env = {k: v for k, v in os.environ.items() if not k.startswith("PDM_PURIFIER_")
+           or k == 'PDM_PURIFIER_PROJECT_INPUTS'}
+    env.setdefault('PDM_VENV_BACKEND', 'venv')
     if is_external(root, pdm_lock):
         env["PDM_LOCKFILE"] = str(pdm_lock.resolve())
     return env
@@ -194,7 +205,48 @@ def online_pdm(root: Path, pdm_lock: Path, *args: str) -> int:
     return subprocess.run([pdm_executable(), *args], cwd=root, env=env).returncode
 
 
-def lock(root: Path, lockfile: Path, pdm_lock: Path) -> None:
+def lock(root: Path, lockfile: Path, pdm_lock: Path, inputs=None, refresh=False, packages=None) -> None:
+    try:
+        previous = read_lockfile(lockfile) if lockfile.exists() else {}
+    except Error:
+        previous = {}
+    original = previous.get('projectInputs', [])
+    references = inputs if inputs is not None else [entry['reference'] for entry in original]
+    if not references:
+        return native_lock(root, lockfile, pdm_lock)
+    sys.path.insert(0, setting('PDM_PURIFIER_PROJECT_INPUTS_TOOLS'))
+    sys.path.insert(0, setting('PDM_PURIFIER_NIX_LIB'))
+    import project_inputs
+    import python_bindings
+    try:
+        pinned = project_inputs.pin(references, original, refresh)
+        views = project_inputs.python_views(pinned, state_dir(lockfile) / 'project-inputs')
+        old_roots = [entry['nativeRepository'] for entry in original if 'nativeRepository' in entry]
+        configuration = python_bindings.write(views, old_roots, state_dir(lockfile) / 'bindings')
+        before = os.environ.get('PDM_PURIFIER_PROJECT_INPUTS')
+        os.environ['PDM_PURIFIER_PROJECT_INPUTS'] = str(configuration)
+        try:
+            prepare_pdm_lock(root, pdm_lock)
+            command = ['update', '--no-sync', *(packages or [])] if refresh else ['lock', '--update-reuse']
+            if online_pdm(root, pdm_lock, *command) != 0:
+                raise Error('PDM could not resolve the Nix-provided inputs')
+            native_lock(root, lockfile, pdm_lock)
+        finally:
+            if before is None:
+                os.environ.pop('PDM_PURIFIER_PROJECT_INPUTS', None)
+            else:
+                os.environ['PDM_PURIFIER_PROJECT_INPUTS'] = before
+        data = read_lockfile(lockfile)
+        for entry, view in zip(pinned, views):
+            entry['nativeRepository'] = str(view['repository'])
+        data['projectInputs'] = pinned
+        data['contentHash'] = content_hash(data)
+        lockfile.write_text(json.dumps(data, indent=2, sort_keys=True) + '\n')
+    except (ValueError, subprocess.CalledProcessError) as error:
+        raise Error(str(error)) from error
+
+
+def native_lock(root: Path, lockfile: Path, pdm_lock: Path) -> None:
     """Write pdm-purifier.lock.json for pdm.lock as it is. Where pdm.lock is
     missing, `pdm lock` writes it; where it no longer matches
     pyproject.toml, `pdm lock --update-reuse` brings it up to date and keeps
@@ -225,10 +277,13 @@ def lock(root: Path, lockfile: Path, pdm_lock: Path) -> None:
         raise Error("the lock run failed")
 
 
-def update(root: Path, lockfile: Path, pdm_lock: Path, packages: list[str]) -> None:
+def update(root: Path, lockfile: Path, pdm_lock: Path, packages: list[str], inputs=None) -> None:
     """Update pdm.lock with `pdm update`, for every package or the named
     ones, without installing anything, and then relock
     pdm-purifier.lock.json against it."""
+    previous = read_lockfile(lockfile) if lockfile.exists() else {}
+    if inputs is not None or previous.get('projectInputs'):
+        return lock(root, lockfile, pdm_lock, inputs, refresh=True, packages=packages)
     prepare_pdm_lock(root, pdm_lock)
     if online_pdm(root, pdm_lock, "update", "--no-sync", *packages) != 0:
         raise Error("`pdm update` failed")
@@ -315,10 +370,15 @@ def publish(root: Path, lockfile: Path, pdm_lock: Path, packages: list[str], pub
         log(f"publishing {name} from {dist}")
         env = pdm_environment(root, pdm_lock)
         env["PDM_PURIFIER_MODE"] = "off"
-        result = subprocess.run(
-            [pdm_executable(), "publish", "--project", str(package_dir), "--no-build", "--dest", str(dist), *publish_args],
-            env=env,
-        )
+        with tempfile.TemporaryDirectory(prefix="pdm-purifier-publish-") as temporary:
+            staged = Path(temporary)
+            for file in dist.iterdir():
+                if file.is_file() and file.name.endswith((".whl", ".tar.gz", ".zip")):
+                    (staged / file.name).symlink_to(file)
+            result = subprocess.run(
+                [pdm_executable(), "publish", "--project", str(package_dir), "--no-build", "--dest", str(staged), *publish_args],
+                env=env,
+            )
         if result.returncode != 0:
             raise Error(f"pdm publish failed for {name}")
 
@@ -333,8 +393,10 @@ def main(argv: list[str] | None = None) -> int:
         help=f"the pdm.lock to use (default: ${TOOL_LOCKFILE_ENV}, else pdm.lock in the project)",
     )
     verbs = parser.add_subparsers(dest="verb", required=True)
-    verbs.add_parser("lock", help="write pdm-purifier.lock.json, keeping pdm.lock's resolution")
+    lock_parser = verbs.add_parser("lock", help="write pdm-purifier.lock.json, keeping pdm.lock's resolution")
+    lock_parser.add_argument('--input', action='append', help='a Nix producer exposing a Python wheelhouse')
     update_parser = verbs.add_parser("update", help="update pdm.lock with `pdm update`, then relock")
+    update_parser.add_argument('--input', action='append', help='a Nix producer exposing a Python wheelhouse')
     update_parser.add_argument("packages", nargs="*", help="the packages to update (default: all)")
     verbs.add_parser("prefetch", help="fetch the locked files, and install every locked group offline")
     publish_parser = verbs.add_parser("publish", help="upload what the Nix build made")
@@ -346,9 +408,9 @@ def main(argv: list[str] | None = None) -> int:
         lockfile = lockfile_path(root, options.lockfile)
         pdm_lock = pdm_lock_path(root, options.tool_lockfile)
         if options.verb == "lock":
-            lock(root, lockfile, pdm_lock)
+            lock(root, lockfile, pdm_lock, inputs=options.input)
         elif options.verb == "update":
-            update(root, lockfile, pdm_lock, options.packages)
+            update(root, lockfile, pdm_lock, options.packages, options.input)
         elif options.verb == "prefetch":
             prefetch(root, lockfile, pdm_lock)
         elif options.verb == "publish":

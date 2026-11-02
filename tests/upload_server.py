@@ -33,4 +33,7 @@ class Upload(BaseHTTPRequestHandler):
         print(format % args, file=sys.stderr)
 
 
-HTTPServer(("127.0.0.1", int(sys.argv[1])), Upload).serve_forever()
+server = HTTPServer(("127.0.0.1", int(sys.argv[1])), Upload)
+if len(sys.argv) > 3:
+    Path(sys.argv[3]).write_text(str(server.server_port))
+server.serve_forever()

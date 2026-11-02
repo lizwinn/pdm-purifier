@@ -18,6 +18,7 @@
 }:
 let
   pdm = pdm-with-plugin;
+  python = python3.withPackages (ps: [ ps.packaging ]);
 in
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "pdm-purifier";
@@ -38,7 +39,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     mkdir -p $out/bin $out/share/pdm-purifier
     cp cli/pdm_purifier_cli.py $out/share/pdm-purifier/
     cp -r nix/lib $out/share/pdm-purifier/nix-lib
-    makeWrapper ${python3.interpreter} $out/bin/pdm-purifier \
+    makeWrapper ${python.interpreter} $out/bin/pdm-purifier \
       --add-flags "-I $out/share/pdm-purifier/pdm_purifier_cli.py" \
       --prefix PATH : ${
         # The lock run prefetches git checkouts with nix-prefetch-git, and the
@@ -52,7 +53,8 @@ stdenvNoCC.mkDerivation (finalAttrs: {
       --set PDM_PURIFIER_NIX_LIB $out/share/pdm-purifier/nix-lib \
       --set PDM_PURIFIER_NIXPKGS ${path} \
       --set PDM_PURIFIER_PDM ${pdm} \
-      --set PDM_PURIFIER_LIBRARY ${purifierSource}
+      --set PDM_PURIFIER_LIBRARY ${purifierSource} \
+      --set PDM_PURIFIER_PROJECT_INPUTS_TOOLS ${purifierSource}/tools
     # The development loop runs this PDM, whose plugin serves a prefetched
     # project from the locked files.
     ln -s ${pdm}/bin/pdm $out/bin/pdm

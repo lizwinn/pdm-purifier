@@ -95,6 +95,7 @@
   # `PDM_BUILD_SCM_VERSION`, which a project that takes its version from git
   # needs because `src` has no .git directory.
   env ? { },
+  projectDependencies ? null,
 }:
 let
   inherit (builtins)
@@ -132,6 +133,39 @@ let
         ;
     }
   );
+  inputRecords = lock.projectInputs;
+  dependencies =
+    if projectDependencies == null then
+      purifier.lockedProjectInputs {
+        inputs = inputRecords;
+        system = stdenv.hostPlatform.system;
+      }
+    else
+      projectDependencies;
+  supplied = purifier.projectInputs {
+    inherit dependencies;
+    formats = [ "python" ];
+  };
+  hasInputs = supplied != [ ];
+  inputViews = writeText "pdm-python-inputs.json" (
+    builtins.toJSON (
+      map (input: {
+        repository = toString input.repository;
+        catalog = input.repository.catalog;
+      }) supplied
+    )
+  );
+  oldRepositories = writeText "pdm-python-original-repositories.json" (
+    builtins.toJSON (map (input: input.nativeRepository) inputRecords)
+  );
+  inputBindings =
+    runCommand "pdm-python-bindings"
+      { nativeBuildInputs = [ (python3.withPackages (ps: [ ps.packaging ])) ]; }
+      ''
+        python ${./python_bindings.py} --tools ${purifier.projectInputsTool} \
+          --views ${inputViews} --old-repositories ${oldRepositories} --destination "$out"
+      '';
+
   locked = purifier.entriesFor stdenv.hostPlatform.system lock;
   # The store path of a download entry of the lock, from the shared purifier
   # library: a file, or a version control checkout. A git entry with
@@ -212,6 +246,7 @@ let
 
   manifest = writeText "pdm-purifier-manifest.json" (
     builtins.toJSON {
+      pythonInputs = if hasInputs then "${inputBindings}/inputs.json" else null;
       files = listToAttrs (
         map (entry: {
           name = entry.url;
@@ -322,6 +357,7 @@ let
       # PDM installs into the virtual environment of the interpreter the
       # project uses.
       pdm use --first --ignore-remembered "$out/bin/python"
+      export PDM_PURIFIER_EXPORT_WHEELS="$out/nix-support/wheels"
       pdm sync --prod --no-editable ${
         lib.concatMapStringsSep " " (group: "-G ${lib.escapeShellArg group}") groups
       } ${lib.optionalString (!projectIsDistribution) "--no-self"}
@@ -371,7 +407,62 @@ let
     // {
       wheel = copy "wheel" "*.whl";
       sdist = copy "sdist" "*.tar.gz";
+    }
+    // {
+      projections = projectionFor [ output.name ] output.name;
     };
+
+  publicationEnvironment = environment.overrideAttrs (_: {
+    name = "${projectName}-publication-environment";
+    buildPhase = ''
+      runHook preBuild
+      ${setupPdm}
+      cd ${lib.escapeShellArg projectDir}
+      ${python.interpreter} -m venv --without-pip "$out"
+      pdm use --first --ignore-remembered "$out/bin/python"
+      export PDM_PURIFIER_EXPORT_WHEELS="$out/nix-support/wheels"
+      pdm sync --no-editable ${
+        lib.concatMapStringsSep " " (group: "-G ${lib.escapeShellArg group}") (
+          (builtins.fromTOML (builtins.readFile pdmLock)).metadata.groups or [ "default" ]
+        )
+      } ${lib.optionalString (!projectIsDistribution) "--no-self"}
+      runHook postBuild
+    '';
+  });
+  projectionFor =
+    roots: name:
+    let
+      scope =
+        runCommand "${name}-publication-scope"
+          {
+            nativeBuildInputs = [ (python3.withPackages (ps: [ ps.packaging ])) ];
+            outputs = [
+              "out"
+              "runtime"
+            ];
+            repositories = builtins.toJSON (map (output: toString packages.${output.name}) outputs);
+            roots = builtins.toJSON roots;
+            passAsFile = [
+              "repositories"
+              "roots"
+            ];
+          }
+          ''
+            python ${./wheel_scope.py} --environment ${publicationEnvironment} \
+              --repositories "$repositoriesPath" --roots "$rootsPath" \
+              --destination "$out" --runtime "$runtime"
+            mkdir -p "$runtime/nix-support"
+            printf '%s\n' ${publicationEnvironment} > "$runtime/nix-support/inputs"
+          '';
+    in
+    purifier.pythonProjections {
+      repository = scope.out;
+      runtimeRepository = scope.runtime;
+      inherit dependencies runCommand python3;
+    };
+  projections = projectionFor (
+    if projectOutput == null then pyproject.project.dependencies or [ ] else [ projectOutput.name ]
+  ) projectName;
 
   programs = listToAttrs (
     concatMap (
@@ -430,6 +521,7 @@ in
   inherit
     environment
     manifest
+    projections
     programs
     packages
     tests

@@ -76,6 +76,9 @@ let
 in
 if package == null then
   project.manifest
+else if !(project.packages ? ${package}) then
+  throw "pdm-purifier: ${package} is not a local distribution of this project; they are ${toString (builtins.attrNames project.packages)}"
+else if ((builtins.fromJSON (builtins.readFile (/. + lockFile))).projectInputs or [ ]) != [ ] then
+  project.packages.${package}.projections.python
 else
   project.packages.${package}
-    or (throw "pdm-purifier: ${package} is not a local distribution of this project; they are ${toString (builtins.attrNames project.packages)}")

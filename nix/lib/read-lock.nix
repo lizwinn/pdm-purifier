@@ -77,6 +77,7 @@ in
 {
   purifier = "pdm-purifier";
   entries = if usable then entries.files ++ entries.checkouts else [ ];
+  projectInputs = if usable then read.projectInputs or [ ] else [ ];
   outputs =
     if usable then
       lib.listToAttrs (
