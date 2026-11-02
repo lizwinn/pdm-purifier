@@ -106,6 +106,28 @@ let
   failedBuild = drv: pkgs.testers.testBuildFailure drv;
 in
 {
+  unlocked-wrapper = runCommand "unlocked-wrapper" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+    export HOME="$TMPDIR/home"
+    mkdir -p "$HOME"
+    cd "$TMPDIR"
+    for option in --version --help; do
+      ${cli}/bin/pdm "$option" >stdout 2>stderr
+      test "$(grep -c pdm-purifier:\ warning: stderr)" = 1
+    done
+    ${cli}/bin/pdm >stdout 2>stderr
+    test "$(grep -c pdm-purifier:\ warning: stderr)" = 1
+    cat > pyproject.toml <<'PROJECT'
+    [project]
+    name = "unlocked-probe"
+    version = "0.1.0"
+    requires-python = ">=3.10"
+    dependencies = []
+    PROJECT
+    PDM_USE_VENV=false PDM_CHECK_UPDATE=false ${cli}/bin/pdm info --where >stdout 2>stderr
+    test "$(grep -c pdm-purifier:\ warning: stderr)" = 1
+    touch "$out"
+  '';
+
   inherit cli;
 
   # The unit tests of the plugin's transports and lock helpers, and of the

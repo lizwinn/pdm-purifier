@@ -202,7 +202,7 @@ def warn_unlocked(root: Path) -> bool:
     path = Path(named) if named else root / "pdm-purifier.lock.json"
     if path.exists():
         return False
-    if root not in _warned_unlocked:
+    if root not in _warned_unlocked and not os.environ.get("PDM_PURIFIER_WARNING_SENT"):
         print('pdm-purifier: warning: no pdm-purifier.lock.json found; running PDM impurely. Run `pdm-purifier lock` to use Nix-resolved dependencies.', file=sys.stderr)
         _warned_unlocked.add(root)
     return True
