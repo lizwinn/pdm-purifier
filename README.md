@@ -83,11 +83,11 @@ pyproject.toml no longer matches it. To move versions, run
 packages. It runs `pdm update --no-sync` and then relocks.
 
 `publish` uploads the `release` that Nix built, with `pdm publish
---no-build`. Arguments after `--` go to `pdm publish`, and `--package
-<name>` limits it to some distributions:
+--no-build`. Arguments after `--` go to `pdm publish`, and `--package <name>` limits it to some distributions:
 
 ```zsh
-nix run github:nix-purifiers/pdm-purifier -- publish -- --username __token__ --password "$PYPI_TOKEN"
+nix run github:nix-purifiers/pdm-purifier -- publish -- \
+  --username __token__ --password "$PYPI_TOKEN"
 ```
 
 A project can keep its build external, in the repository of the flake that
@@ -120,7 +120,8 @@ repository or in another one:
   inputs.pdm-purifier.url = "github:nix-purifiers/pdm-purifier";
   inputs.nixpkgs.follows = "pdm-purifier/nixpkgs";
 
-  outputs = { nixpkgs, pdm-purifier, ... }:
+  outputs =
+    { nixpkgs, pdm-purifier, ... }:
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs {
@@ -183,15 +184,14 @@ For an ad hoc build, the builder can also be evaluated directly from the
 project root. Replace the example package name with one from your project:
 
 ```zsh
-nix build --impure --expr '
-  let
-    purifier = builtins.getFlake "github:nix-purifiers/pdm-purifier";
-    pkgs = import purifier.inputs.nixpkgs {
-      system = builtins.currentSystem;
-      overlays = [ purifier.overlays.default ];
-    };
-  in
-  (pkgs.pdm-purifier.buildPdmProject { src = ./.; }).packages.app'
+nix build --impure --expr 'let
+  purifier = builtins.getFlake "github:nix-purifiers/pdm-purifier";
+  pkgs = import purifier.inputs.nixpkgs {
+    system = builtins.currentSystem;
+    overlays = [ purifier.overlays.default ];
+  };
+in
+(pkgs.pdm-purifier.buildPdmProject { src = ./.; }).packages.app'
 ```
 
 This uses the purifier's pinned nixpkgs, matching the lock command above.
@@ -280,15 +280,14 @@ nix run github:nix-purifiers/pdm-purifier -- lock
 Then build it from the directory of the clone:
 
 ```zsh
-nix build --impure --expr '
-  let
-    purifier = builtins.getFlake "github:nix-purifiers/pdm-purifier";
-    pkgs = import purifier.inputs.nixpkgs {
-      system = builtins.currentSystem;
-      overlays = [ purifier.overlays.default ];
-    };
-  in
-  (pkgs.pdm-purifier.buildPdmProject { src = ./.; }).packages.pdm'
+nix build --impure --expr 'let
+  purifier = builtins.getFlake "github:nix-purifiers/pdm-purifier";
+  pkgs = import purifier.inputs.nixpkgs {
+    system = builtins.currentSystem;
+    overlays = [ purifier.overlays.default ];
+  };
+in
+(pkgs.pdm-purifier.buildPdmProject { src = ./.; }).packages.pdm'
 ```
 
 The result holds the sdist and the wheel of PDM. To get the `pdm` command
@@ -296,15 +295,14 @@ that the build installs, take `programs.pdm` from the same expression and
 start it from the `result` link:
 
 ```zsh
-nix build --impure --expr '
-  let
-    purifier = builtins.getFlake "github:nix-purifiers/pdm-purifier";
-    pkgs = import purifier.inputs.nixpkgs {
-      system = builtins.currentSystem;
-      overlays = [ purifier.overlays.default ];
-    };
-  in
-  (pkgs.pdm-purifier.buildPdmProject { src = ./.; }).programs.pdm'
+nix build --impure --expr 'let
+  purifier = builtins.getFlake "github:nix-purifiers/pdm-purifier";
+  pkgs = import purifier.inputs.nixpkgs {
+    system = builtins.currentSystem;
+    overlays = [ purifier.overlays.default ];
+  };
+in
+(pkgs.pdm-purifier.buildPdmProject { src = ./.; }).programs.pdm'
 result/bin/pdm --version
 ```
 
