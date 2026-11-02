@@ -5,8 +5,6 @@ Nix-resolved dependencies. Use the normal build and test commands in your
 working tree; building the project itself in the Nix sandbox is an
 optional next step.
 
-It follows the [purifier contract](https://github.com/nix-purifiers/purifier/blob/main/CONTRACT.md).
-
 pdm.lock pins every package with the names and hashes of its files, but not
 their URLs, and it pins nothing that PDM installs to build a package.
 pdm-purifier adds a PDM plugin and a file, `pdm-purifier.lock.json`, that
