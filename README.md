@@ -63,9 +63,10 @@ To change dependencies, run PDM with `PDM_PURIFIER_MODE=off` and update
 both lockfiles:
 
 ```zsh
+nix shell 'github:nix-purifiers/pdm-purifier'
 PDM_PURIFIER_MODE=off pdm add requests
-nix run github:nix-purifiers/pdm-purifier -- lock
-nix run github:nix-purifiers/pdm-purifier -- prefetch
+pdm-purifier lock
+pdm-purifier prefetch
 ```
 
 `lock` keeps the versions in pdm.lock. It writes pdm.lock where it is
@@ -78,7 +79,8 @@ packages. It runs `pdm update --no-sync` and then relocks.
 --no-build`. Arguments after `--` go to `pdm publish`, and `--package <name>` limits it to some distributions:
 
 ```zsh
-nix run github:nix-purifiers/pdm-purifier -- publish -- \
+nix shell 'github:nix-purifiers/pdm-purifier'
+pdm-purifier publish -- \
   --username __token__ --password "$PYPI_TOKEN"
 ```
 
@@ -263,10 +265,11 @@ To build [PDM](https://github.com/pdm-project/pdm) itself with Nix, clone
 it, bring its pdm.lock up to date, and lock the downloads:
 
 ```zsh
+nix shell 'github:nix-purifiers/pdm-purifier'
 git clone https://github.com/pdm-project/pdm
 cd pdm
-nix shell github:nix-purifiers/pdm-purifier -c pdm lock -G :all
-nix run github:nix-purifiers/pdm-purifier -- lock
+pdm lock -G :all
+pdm-purifier lock
 ```
 
 Then build it from the directory of the clone:
