@@ -164,6 +164,10 @@ def source_root(root: Path, pdm_lock: Path | None = None, lockfile: Path | None 
 
 
 def nix_build(root: Path, lockfile: Path, pdm_lock: Path, out_link: Path, **args: str) -> Path:
+    if "pythonVersion" not in args:
+        version = project_python_version(root,pdm_lock)
+        if version is not None:
+            args["pythonVersion"] = version
     src, project_dir = source_root(root, pdm_lock, lockfile)
     command = [
         "nix-build",
@@ -222,7 +226,7 @@ def lock(root: Path, lockfile: Path, pdm_lock: Path, inputs=None, refresh=False,
         pinned = project_inputs.pin(references, original, refresh)
         views = project_inputs.python_views(pinned, state_dir(lockfile) / 'project-inputs')
         old_roots = [entry['nativeRepository'] for entry in original if 'nativeRepository' in entry]
-        configuration = python_bindings.write(views, old_roots, state_dir(lockfile) / 'bindings')
+        configuration = python_bindings.write(views, old_roots, state_dir(lockfile) / 'bindings', python=project_python(root,pdm_lock))
         before = os.environ.get('PDM_PURIFIER_PROJECT_INPUTS')
         os.environ['PDM_PURIFIER_PROJECT_INPUTS'] = str(configuration)
         try:
@@ -290,7 +294,7 @@ def update(root: Path, lockfile: Path, pdm_lock: Path, packages: list[str], inpu
     lock(root, lockfile, pdm_lock)
 
 
-def project_python_version(root: Path, pdm_lock: Path) -> str | None:
+def project_python(root: Path, pdm_lock: Path) -> str | None:
     env = pdm_environment(root, pdm_lock)
     env["PDM_PURIFIER_MODE"] = "off"
     found = subprocess.run(
@@ -302,8 +306,15 @@ def project_python_version(root: Path, pdm_lock: Path) -> str | None:
     )
     if found.returncode != 0 or not found.stdout.strip():
         return None
+    return found.stdout.strip()
+
+
+def project_python_version(root: Path, pdm_lock: Path) -> str | None:
+    python = project_python(root,pdm_lock)
+    if python is None:
+        return None
     version = subprocess.run(
-        [found.stdout.strip(), "-c", "import sys; print('%d.%d' % sys.version_info[:2])"],
+        [python, "-I", "-c", "import sys; print('%d.%d' % sys.version_info[:2])"],
         capture_output=True,
         text=True,
     )

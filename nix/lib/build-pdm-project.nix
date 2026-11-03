@@ -160,7 +160,7 @@ let
   );
   inputBindings =
     runCommand "pdm-python-bindings"
-      { nativeBuildInputs = [ (python3.withPackages (ps: [ ps.packaging ])) ]; }
+      { nativeBuildInputs = [ (python.withPackages (ps: [ ps.packaging ])) ]; }
       ''
         python ${./python_bindings.py} --tools ${purifier.projectInputsTool} \
           --views ${inputViews} --old-repositories ${oldRepositories} --destination "$out"

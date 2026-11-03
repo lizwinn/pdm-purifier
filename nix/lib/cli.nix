@@ -48,16 +48,13 @@ let
       ];
   };
 
-  # The interpreter's version picks the wheels. A build that needs the
-  # interpreter itself runs in Nix with the package set's Python.
+  # Use the actual interpreter, not only its wheel-selection metadata.
   python =
     if pythonVersion == null then
       pkgs.python3
     else
-      pkgs.python3
-      // {
-        inherit pythonVersion;
-      };
+      pkgs.${"python" + builtins.replaceStrings [ "." ] [ "" ] pythonVersion}
+        or (throw "pdm-purifier: nixpkgs has no Python ${pythonVersion}");
 
   buildPdmProject = pkgs.callPackage ./build-pdm-project.nix {
     purifier = import (builtins.storePath purifier) { inherit (pkgs) lib; };
@@ -69,7 +66,7 @@ let
       inherit projectDir;
       src = source;
       lockFile = /. + lockFile;
-      python = if package == null then python else pkgs.python3;
+      inherit python;
     }
     // pkgs.lib.optionalAttrs (pdmLock != null) { pdmLock = /. + pdmLock; }
   );

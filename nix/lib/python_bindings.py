@@ -6,9 +6,9 @@ from pathlib import Path
 import sys
 
 
-def write(views, old_roots, destination):
-    from python_repository import selections
-    selected = selections(views)
+def write(views, old_roots, destination, python=None):
+    from python_repository import interpreter_tags, selections
+    selected = selections(views, interpreter_tags(python) if python is not None else None)
     destination.mkdir(parents=True, exist_ok=True)
     overrides = destination / 'requirements.txt'
     overrides.write_text(''.join(name + ' @ ' + module['wheel'].as_uri() + '\n'
