@@ -193,11 +193,24 @@ let
 
   platform = stdenv.hostPlatform;
   target = "Python ${python.pythonVersion} on ${platform.system}";
-  installs = purifier.wheels {
-    inherit (python) pythonVersion;
-    arch = platform.parsed.cpu.name;
-    glibcVersion = glibc.version;
-  };
+  installs = purifier.wheels (
+    {
+      inherit (python) pythonVersion;
+    }
+    // (
+      if platform.isDarwin then
+        {
+          # macOS wheel tags name the CPU arm64.
+          arch = "arm64";
+          macosVersion = platform.darwinMinVersion;
+        }
+      else
+        {
+          arch = platform.parsed.cpu.name;
+          glibcVersion = glibc.version;
+        }
+    )
+  );
 
   isWheel = entry: lib.hasSuffix ".whl" entry.file;
 

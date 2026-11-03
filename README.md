@@ -283,7 +283,9 @@ pdm.lock pins into such a checkout, so a build that takes its version from
 version control history (setuptools-scm, hatch-vcs) gets that version.
 
 The build runs on Linux for x86_64 and aarch64, where the wheel tags are
-checked against the package set's glibc. pdm.lock must use SHA-256 file
+checked against the package set's glibc, and on macOS for arm64, where
+they are checked against the oldest macOS that the package set supports
+(`darwinMinVersion`, 14.0 in nixpkgs). pdm.lock must use SHA-256 file
 hashes, which is PDM's default.
 
 pdm.lock does not record the system that a file is for, so the entries of
@@ -292,9 +294,10 @@ the wheels whose file names show that they install with its Python on its
 system, or else the sdist.
 
 The lock run builds the project, its local packages, its version control
-dependencies, and each dependency that has no wheel for Linux on x86_64 or
-on aarch64 with the lock run's Python. A dependency with a C extension
-needs a C compiler on PATH, as it does for `pdm install`.
+dependencies, and each dependency that has no wheel for Linux on x86_64,
+Linux on aarch64 or macOS on arm64 with the lock run's Python. A
+dependency with a C extension needs a C compiler on PATH, as it does for
+`pdm install`.
 
 ## Examples
 

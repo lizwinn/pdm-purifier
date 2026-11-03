@@ -39,9 +39,11 @@ import subprocess
 import tarfile
 import tempfile
 import zipfile
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from packaging.tags import mac_platforms
 from packaging.utils import (
     InvalidSdistFilename,
     InvalidWheelFilename,
@@ -63,6 +65,11 @@ LOCKFILE = "pdm-purifier.lock.json"
 VCS_KEYS = ("git", "hg", "svn", "bzr")
 # The architectures of the Linux systems that the Nix build supports.
 SUPPORTED_ARCHITECTURES = ("x86_64", "aarch64")
+# The platform tags of the wheels that install on the macOS system that the
+# Nix build supports: arm64, on the oldest macOS that nixpkgs supports
+# (stdenv.hostPlatform.darwinMinVersion), as the shared library's `wheels`
+# chooses them.
+MACOS_PLATFORMS = frozenset(mac_platforms((14, 0), "arm64"))
 # 2000-01-01 00:00:00 UTC, a time that zip files can hold.
 STORE_COPY_TIME = 946684800
 
@@ -111,12 +118,25 @@ def has_linux_wheel(filename: str, arch: str, python: tuple[int, int]) -> bool:
     its tags name a Linux platform of that architecture, and a Python
     interface the interpreter satisfies (any Python 3, the stable ABI from an
     older CPython, or this CPython)."""
+    return has_wheel(filename, lambda platform: "linux" in platform and platform.endswith(arch), python)
+
+
+def has_macos_wheel(filename: str, python: tuple[int, int]) -> bool:
+    """Whether a wheel installs on the supported macOS system with CPython
+    ``python``: its tags name one of MACOS_PLATFORMS, and a Python interface
+    the interpreter satisfies."""
+    return has_wheel(filename, MACOS_PLATFORMS.__contains__, python)
+
+
+def has_wheel(filename: str, platform: Callable[[str], bool], python: tuple[int, int]) -> bool:
+    """Whether a wheel has a tag whose platform ``platform`` accepts, with a
+    Python interface that CPython ``python`` satisfies."""
     if not filename.endswith(".whl"):
         return False
     _, _, _, tags = parse_wheel_filename(filename)
     major, minor = python
     for tag in tags:
-        if "linux" not in tag.platform or not tag.platform.endswith(arch):
+        if not platform(tag.platform):
             continue
         if tag.abi == "none" and tag.interpreter.startswith("py"):
             return True
@@ -442,14 +462,15 @@ class Locker:
         """A package is built from its sdist, so that the build requirements
         are recorded, when a system that pdm-purifier supports has no wheel
         for it: no universal wheel, and no wheel of the lock run's Python for
-        both Linux x86_64 and Linux aarch64."""
+        each of Linux x86_64, Linux aarch64 and macOS arm64."""
         if not any(is_sdist(f) for f in filenames):
             return False
         if any(is_universal_wheel(f) for f in filenames):
             return False
         interpreter = self.environment.interpreter
         python = (interpreter.major, interpreter.minor)
-        return not all(any(has_linux_wheel(f, arch, python) for f in filenames) for arch in SUPPORTED_ARCHITECTURES)
+        linux = all(any(has_linux_wheel(f, arch, python) for f in filenames) for arch in SUPPORTED_ARCHITECTURES)
+        return not (linux and any(has_macos_wheel(f, python) for f in filenames))
 
     def recorded(self) -> list[dict]:
         if not self.record.exists():

@@ -49,7 +49,7 @@ echo "== no purifier lock warns and keeps ordinary PDM commands usable"
 mv pdm-purifier.lock.json "$work/unlocked-backup.json"
 PDM_USE_VENV=false pdm info --where >"$work/unlocked.out" 2>"$work/unlocked.log"
 grep -q "warning:.*impurely" "$work/unlocked.log"
-[ "$(cat "$work/unlocked.out")" = "$PWD" ]
+[ "$(cat "$work/unlocked.out")" = "$(pwd -P)" ]
 test ! -e pdm-purifier.lock.json
 mv "$work/unlocked-backup.json" pdm-purifier.lock.json
 

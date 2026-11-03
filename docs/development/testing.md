@@ -53,8 +53,8 @@ The flake check also runs the checks of the purifier contract
 CI as jobs of the same name.
 
 The flake check also checks the formatting of the Nix files with nixfmt.
-`nix flake check --all-systems --no-build` evaluates the checks for
-aarch64-linux too.
+`nix flake check --all-systems --no-build` evaluates the checks for the
+other systems too.
 
 Three scripts run outside the sandbox, each from the repository root:
 
