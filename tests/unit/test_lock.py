@@ -11,6 +11,7 @@ from pathlib import Path
 from pdm_purifier.lock import (
     content_hash,
     has_linux_wheel,
+    has_macos_wheel,
     inputs_hash,
     is_sdist,
     is_universal_wheel,
@@ -46,6 +47,21 @@ class FileNames(unittest.TestCase):
         self.assertTrue(has_linux_wheel("a-1-cp314-cp314-musllinux_1_2_x86_64.whl", "x86_64", python))
         self.assertFalse(has_linux_wheel("a-1-cp314-cp314-macosx_11_0_arm64.whl", "aarch64", python))
         self.assertFalse(has_linux_wheel("a-1.tar.gz", "x86_64", python))
+
+    def test_macos_wheels_by_platform_and_python(self) -> None:
+        python = (3, 14)
+        self.assertTrue(has_macos_wheel("msgpack-1.1.2-cp314-cp314-macosx_11_0_arm64.whl", python))
+        self.assertTrue(has_macos_wheel("numpy-2.3.4-cp314-cp314-macosx_14_0_arm64.whl", python))
+        self.assertTrue(has_macos_wheel("msgpack-1.1.2-cp314-cp314-macosx_10_13_universal2.whl", python))
+        self.assertTrue(has_macos_wheel("cryptography-46.0.3-cp311-abi3-macosx_10_9_universal2.whl", python))
+        # Later than macOS 14.0, a minor release that packaging does not
+        # list, an Intel Mac, another CPython, and Linux.
+        self.assertFalse(has_macos_wheel("numpy-2.3.4-cp314-cp314-macosx_15_0_arm64.whl", python))
+        self.assertFalse(has_macos_wheel("numpy-2.3.4-cp314-cp314-macosx_11_1_arm64.whl", python))
+        self.assertFalse(has_macos_wheel("msgpack-1.1.2-cp314-cp314-macosx_10_13_x86_64.whl", python))
+        self.assertFalse(has_macos_wheel("msgpack-1.1.2-cp313-cp313-macosx_11_0_arm64.whl", python))
+        self.assertFalse(has_macos_wheel("a-1-cp314-cp314-manylinux_2_17_aarch64.whl", python))
+        self.assertFalse(has_macos_wheel("a-1.tar.gz", python))
 
     def test_sdists(self) -> None:
         self.assertTrue(is_sdist("docopt-0.6.2.tar.gz"))
